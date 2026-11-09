@@ -1,0 +1,662 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Stormwarren</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+/* Layout: one column. Title row, status strip (hearts, carrots, level, sky gauge), the pixel viewport, a message line, then touch controls. A dark-only world, so the page commits to one look. */
+:root {
+  --bg: #070b0e;
+  --panel: #0d1519;
+  --line: #1f3034;
+  --fg: #d3e6da;
+  --dim: #7d968b;
+  --carrot: #ff8a2a;
+  --carrot-deep: #a14d0b;
+  --storm: #7fb2ff;
+  --danger: #ff5a5f;
+  --moss: #5fd38a;
+  --font-display: "Press Start 2P", "Courier New", monospace;
+  --font-body: "VT323", "Courier New", monospace;
+  color-scheme: dark;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 20px;
+  line-height: 1.25;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.game { max-width: 720px; margin: 0 auto; display: grid; gap: 12px; }
+.top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 16px; flex-wrap: wrap; }
+h1 { margin: 0; font: 400 16px/1.2 var(--font-display); letter-spacing: 0.08em; color: var(--carrot); text-wrap: balance; }
+.best { font: 400 9px/1.4 var(--font-display); color: var(--dim); letter-spacing: 0.06em; }
+.best b { color: var(--fg); font-weight: 400; }
+
+.hud { background: var(--panel); border: 2px solid var(--line); padding: 10px 12px; display: grid; gap: 12px; }
+.hud-row { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: flex-end; }
+.stat { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.label { font: 400 8px/1 var(--font-display); letter-spacing: 0.12em; color: var(--dim); }
+.value { font: 400 12px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.hearts { display: flex; gap: 3px; min-height: 18px; }
+.hearts img { width: 21px; height: 18px; image-rendering: pixelated; display: block; }
+.sky { display: grid; gap: 7px; }
+.sky-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+#skyText { font: 400 10px/1 var(--font-display); letter-spacing: 0.06em; }
+.bar { height: 8px; background: #050809; border: 2px solid var(--line); }
+.bar i { display: block; height: 100%; width: 0; background: var(--storm); transition: width 0.25s steps(6), background-color 0.25s; }
+.sky[data-phase="calm"] #skyText { color: var(--moss); }
+.sky[data-phase="warn"] #skyText { color: var(--carrot); }
+.sky[data-phase="warn"] .bar i { background: var(--carrot); }
+.sky[data-phase="storm"] #skyText { color: var(--storm); }
+
+.stage { position: relative; border: 2px solid var(--line); background: #000; }
+.stage:focus-visible, button:focus-visible { outline: 2px solid var(--storm); outline-offset: 2px; }
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 192 / 136; image-rendering: pixelated; touch-action: none; }
+.veil { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 12px; padding: clamp(14px, 4vw, 32px); background: rgba(4, 7, 9, 0.86); overflow: auto; }
+.veil h2 { margin: 0; font: 400 clamp(12px, 3.2vw, 16px)/1.35 var(--font-display); color: var(--carrot); text-wrap: balance; }
+.veil p { margin: 0; max-width: 46ch; font-size: clamp(17px, 3.6vw, 21px); color: var(--fg); }
+.veil p.dim { color: var(--dim); }
+.veil .stats { display: grid; gap: 6px; font-size: clamp(18px, 3.8vw, 22px); }
+.veil .stats b { font-weight: 400; color: var(--carrot); font-variant-numeric: tabular-nums; }
+.newbest { font: 400 10px/1.3 var(--font-display); color: var(--moss); }
+
+.btn { font: 400 11px/1 var(--font-display); letter-spacing: 0.06em; color: #1a0d02; background: var(--carrot); border: 0; padding: 12px 16px; cursor: pointer; box-shadow: 0 4px 0 var(--carrot-deep); touch-action: manipulation; }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--carrot-deep); }
+
+.msg { min-height: 2.5em; margin: 0; color: var(--fg); }
+.msg[data-tone="warn"] { color: var(--carrot); }
+.msg[data-tone="storm"] { color: var(--storm); }
+.msg[data-tone="good"] { color: var(--moss); }
+.msg[data-tone="bad"] { color: var(--danger); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; }
+.dpad { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); gap: 6px; }
+.pad { font: 400 16px/1 var(--font-display); color: var(--fg); background: var(--panel); border: 2px solid var(--line); cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.pad:active { background: var(--line); }
+.pad.up { grid-column: 2; grid-row: 1; }
+.pad.left { grid-column: 1; grid-row: 2; }
+.pad.down { grid-column: 2; grid-row: 2; }
+.pad.right { grid-column: 3; grid-row: 2; }
+.wait { font: 400 10px/1.3 var(--font-display); letter-spacing: 0.06em; padding: 0 14px; height: 52px; color: var(--storm); background: var(--panel); border: 2px solid var(--line); cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.wait:active { background: var(--line); }
+.legend { margin: 0; flex: 1 1 220px; min-width: 0; color: var(--dim); font-size: 19px; }
+.legend b { color: var(--fg); font-weight: 400; }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+
+<div class="game">
+  <div class="top">
+    <h1>STORMWARREN</h1>
+    <div class="best">BEST RUN <b id="bestVal">0</b> CARROTS</div>
+  </div>
+
+  <section class="hud" aria-label="Status">
+    <div class="hud-row">
+      <div class="stat"><span class="label">HEALTH</span><div class="hearts" id="hearts" role="img" aria-label="Health"></div></div>
+      <div class="stat"><span class="label">CARROTS</span><span class="value" id="carrotVal">0/0</span></div>
+      <div class="stat"><span class="label">FOREST</span><span class="value" id="levelVal">1</span></div>
+    </div>
+    <div class="sky" id="sky" data-phase="calm">
+      <div class="sky-head"><span class="label">SKY</span><span id="skyText">CLEAR</span></div>
+      <div class="bar"><i id="skyBar"></i></div>
+    </div>
+  </section>
+
+  <div class="stage" id="stage" tabindex="0">
+    <canvas id="cv" role="img" aria-label="A small bunny hopping through a dark pixel forest, collecting carrots and hiding in caves from storms"></canvas>
+
+    <div class="veil" id="veilTitle">
+      <h2>THE WOODS AFTER DARK</h2>
+      <p>Collect every carrot to clear the forest. Each hop or wait is one turn.</p>
+      <p>The sky gives you five turns of warning before a storm. Every turn you spend outside in one costs a heart.</p>
+      <p>Caves are safe. Wait inside until the rain stops.</p>
+      <button class="btn" id="startBtn" type="button">BEGIN</button>
+    </div>
+
+    <div class="veil" id="veilDead" hidden>
+      <h2>WASHED AWAY</h2>
+      <div class="stats">
+        <span>Carrots eaten <b id="deadCarrots">0</b></span>
+        <span>Forests cleared <b id="deadLevels">0</b></span>
+        <span>Best run <b id="deadBest">0</b></span>
+      </div>
+      <div class="newbest" id="newBest" hidden>NEW BEST RUN</div>
+      <button class="btn" id="againBtn" type="button">HOP AGAIN</button>
+    </div>
+  </div>
+
+  <p class="msg" id="msg" data-tone="" aria-live="polite">&nbsp;</p>
+
+  <div class="controls">
+    <div class="dpad" aria-label="Movement controls">
+      <button class="pad up" type="button" id="bUp" aria-label="Hop up">&#8593;</button>
+      <button class="pad left" type="button" id="bLeft" aria-label="Hop left">&#8592;</button>
+      <button class="pad down" type="button" id="bDown" aria-label="Hop down">&#8595;</button>
+      <button class="pad right" type="button" id="bRight" aria-label="Hop right">&#8594;</button>
+    </div>
+    <button class="wait" type="button" id="bWait" aria-label="Wait one turn">WAIT<br>1 TURN</button>
+    <p class="legend"><b>Arrows</b> or <b>WASD</b> to hop, <b>Space</b> to wait. On a phone, swipe the forest. Blue outlines mark caves once the sky turns.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var W = 24, H = 17, TS = 8, VW = W * TS, VH = H * TS, MAXHP = 6, WARN = 5;
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  cv.width = VW; cv.height = VH;
+  var stage = document.getElementById('stage');
+  var reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  function rnd(n) { return Math.floor(Math.random() * n); }
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function smooth(a, b, v) { var t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
+  function hh(x, y, s) { var n = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453; return n - Math.floor(n); }
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = rnd(i + 1), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+  /* ---------- pixel sprites ---------- */
+  var PAL = {
+    w: '#ece6d8', p: '#e8a0b0', k: '#14161a', n: '#e0708a', s: '#b3ab9b',
+    o: '#ff8a2a', O: '#c9561a', g: '#5fd36a',
+    l: '#1b5a40', L: '#2a8059', d: '#0e3326', b: '#4a3424',
+    r: '#4d5466', R: '#7b849c', D: '#2b2f38', K: '#050608',
+    m: '#3ddfc0', c: '#c9d8d0',
+    h: '#e5484d', H: '#2c373b'
+  };
+  function sprite(rows, pal) {
+    pal = pal || PAL;
+    var c = document.createElement('canvas'); c.width = rows[0].length; c.height = rows.length;
+    var x = c.getContext('2d');
+    for (var y = 0; y < rows.length; y++) for (var i = 0; i < rows[y].length; i++) {
+      var ch = rows[y].charAt(i);
+      if (ch !== '.' && pal[ch]) { x.fillStyle = pal[ch]; x.fillRect(i, y, 1, 1); }
+    }
+    return c;
+  }
+  function tint(src, color) {
+    var c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    var x = c.getContext('2d'); x.drawImage(src, 0, 0);
+    x.globalCompositeOperation = 'source-atop'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+  var spr = {};
+  spr.bunny = sprite([
+    '.ww..ww.',
+    '.wp..pw.',
+    '.ww..ww.',
+    '..wwww..',
+    '.wkwwkw.',
+    '.wwnnww.',
+    '.wwwwww.',
+    '.ss..ss.'
+  ]);
+  spr.bunnyHurt = tint(spr.bunny, 'rgba(255,60,70,0.7)');
+  spr.carrot = sprite([
+    '...g.g..',
+    '....gg..',
+    '..oooo..',
+    '..ooOo..',
+    '...ooO..',
+    '...oO...',
+    '....o...',
+    '........'
+  ]);
+  spr.tree = sprite([
+    '...ll...',
+    '..lLll..',
+    '..llll..',
+    '.lLllll.',
+    '.llllld.',
+    'lllllldd',
+    '...bb...',
+    '...bb...'
+  ]);
+  spr.tree2 = sprite([
+    '...ll...',
+    '..lLll..',
+    '..llll..',
+    '.lLllll.',
+    '.llllld.',
+    'lllllldd',
+    '...bb...',
+    '...bb...'
+  ], { l: '#164a35', L: '#226b4a', d: '#0b2a20', b: '#3d2b1e' });
+  spr.cave = sprite([
+    '..rrrr..',
+    '.rRRrrr.',
+    'rRrrrrrr',
+    'rrKKKKrr',
+    'rKKKKKKr',
+    'rKKKKKKr',
+    'rKKKKKKr',
+    'DDDDDDDD'
+  ]);
+  spr.mush = sprite([
+    '........',
+    '........',
+    '..mmm...',
+    '.mmmmm..',
+    '...c....',
+    '...c....',
+    '........',
+    '........'
+  ]);
+  var heartFull = sprite(['.hh.hh.', 'hhhhhhh', 'hhhhhhh', '.hhhhh.', '..hhh..', '...h...']).toDataURL();
+  var heartEmpty = sprite(['.HH.HH.', 'HHHHHHH', 'HHHHHHH', '.HHHHH.', '..HHH..', '...H...']).toDataURL();
+
+  /* ---------- state ---------- */
+  var state = 'title';
+  var level = 1, hp = MAXHP, total = 0, sinceHeal = 0, best = loadBest();
+  var tiles = [], caves = [], carrots = {}, carrotTotal = 0, carrotsLeft = 0;
+  var player = { x: 1, y: 1 }, bg = null, seed = 0;
+  var vx = 1, vy = 1, moveT = -999, hurtT = 0, shake = 0, flash = 0, bolt = null;
+  var floaters = [], wasInCave = false;
+  var storm = { phase: 'calm', t: 20, len: 6 };
+  var heartsShown = -1;
+
+  function loadBest() { try { return parseInt(localStorage.getItem('stormwarren-best'), 10) || 0; } catch (e) { return 0; } }
+  function saveBest(v) { try { localStorage.setItem('stormwarren-best', String(v)); } catch (e) {} }
+
+  var el = {
+    hearts: document.getElementById('hearts'), carrot: document.getElementById('carrotVal'),
+    level: document.getElementById('levelVal'), sky: document.getElementById('sky'),
+    skyText: document.getElementById('skyText'), skyBar: document.getElementById('skyBar'),
+    msg: document.getElementById('msg'), best: document.getElementById('bestVal'),
+    veilTitle: document.getElementById('veilTitle'), veilDead: document.getElementById('veilDead'),
+    deadCarrots: document.getElementById('deadCarrots'), deadLevels: document.getElementById('deadLevels'),
+    deadBest: document.getElementById('deadBest'), newBest: document.getElementById('newBest')
+  };
+
+  /* ---------- level generation ---------- */
+  function flood(sx, sy) {
+    var d = [], y;
+    for (y = 0; y < H; y++) { var row = []; for (var x = 0; x < W; x++) row.push(-1); d.push(row); }
+    var q = [[sx, sy]]; d[sy][sx] = 0;
+    var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (var i = 0; i < q.length; i++) {
+      var c = q[i];
+      for (var k = 0; k < 4; k++) {
+        var nx = c[0] + dirs[k][0], ny = c[1] + dirs[k][1];
+        if (nx >= 0 && ny >= 0 && nx < W && ny < H && tiles[ny][nx] === 0 && d[ny][nx] < 0) {
+          d[ny][nx] = d[c[1]][c[0]] + 1; q.push([nx, ny]);
+        }
+      }
+    }
+    return d;
+  }
+  function pickCaves(cells, n) {
+    var seps = [8, 6, 4, 2];
+    for (var s = 0; s < seps.length; s++) {
+      var cand = shuffle(cells.slice()), res = [];
+      for (var i = 0; i < cand.length && res.length < n; i++) {
+        var c = cand[i];
+        if (c.d < 3) continue;
+        var ok = true;
+        for (var j = 0; j < res.length; j++) {
+          if (Math.abs(res[j].x - c.x) + Math.abs(res[j].y - c.y) < seps[s]) { ok = false; break; }
+        }
+        if (ok) res.push({ x: c.x, y: c.y });
+      }
+      if (res.length === n) return res;
+    }
+    return null;
+  }
+  function calmLen() { return Math.max(9, 22 - level * 2) + rnd(6); }
+  function stormLen() { return Math.min(12, 6 + Math.floor(level / 2)); }
+
+  function genLevel() {
+    var tries = 0, done = false;
+    while (!done && tries < 300) {
+      tries++;
+      var dens = Math.min(0.15 + level * 0.01, 0.24);
+      tiles = [];
+      var x, y;
+      for (y = 0; y < H; y++) {
+        var row = [];
+        for (x = 0; x < W; x++) row.push((x === 0 || y === 0 || x === W - 1 || y === H - 1 || Math.random() < dens) ? 1 : 0);
+        tiles.push(row);
+      }
+      for (var k = 0; k < 6; k++) {
+        var cx = 2 + rnd(W - 4), cy = 2 + rnd(H - 4);
+        for (var oy = -1; oy <= 1; oy++) for (var ox = -1; ox <= 1; ox++) if (Math.random() < 0.55) tiles[cy + oy][cx + ox] = 1;
+      }
+      var sx, sy;
+      do { sx = 2 + rnd(W - 4); sy = 2 + rnd(H - 4); } while (tiles[sy][sx] === 1);
+      tiles[sy][sx] = 0;
+      var dist = flood(sx, sy), cells = [];
+      for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (dist[y][x] > 0) cells.push({ x: x, y: y, d: dist[y][x] });
+      if (cells.length < 120) continue;
+      var cv2 = pickCaves(cells, level < 4 ? 3 : 2);
+      if (!cv2) continue;
+      var count = Math.min(5 + level, 13);
+      var pool = shuffle(cells.filter(function (c) {
+        if (c.d < 3) return false;
+        for (var i = 0; i < cv2.length; i++) if (cv2[i].x === c.x && cv2[i].y === c.y) return false;
+        return true;
+      }));
+      if (pool.length < count) continue;
+      caves = cv2; carrots = {};
+      for (var n = 0; n < count; n++) carrots[pool[n].x + ',' + pool[n].y] = { x: pool[n].x, y: pool[n].y };
+      carrotTotal = carrotsLeft = count;
+      player.x = sx; player.y = sy;
+      done = true;
+    }
+    seed = Math.random() * 100;
+    vx = player.x; vy = player.y;
+    storm.phase = 'calm'; storm.t = calmLen() + 4; storm.len = stormLen();
+    wasInCave = false; flash = 0; bolt = null;
+    buildBg();
+  }
+
+  function caveAt(x, y) { for (var i = 0; i < caves.length; i++) if (caves[i].x === x && caves[i].y === y) return true; return false; }
+
+  function buildBg() {
+    bg = document.createElement('canvas'); bg.width = VW; bg.height = VH;
+    var b = bg.getContext('2d');
+    var shades = ['#15261c', '#182b20', '#122116'];
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      b.fillStyle = shades[Math.floor(hh(x, y, seed) * 3)];
+      b.fillRect(x * TS, y * TS, TS, TS);
+      if (hh(x, y, seed + 2) > 0.72) {
+        b.fillStyle = '#23422f';
+        b.fillRect(x * TS + 1 + Math.floor(hh(x, y, seed + 3) * 6), y * TS + 2 + Math.floor(hh(x, y, seed + 4) * 5), 1, 2);
+      }
+      if (tiles[y][x] === 1) {
+        var img = hh(x, y, seed + 5) > 0.5 ? spr.tree : spr.tree2;
+        if (hh(x, y, seed + 6) > 0.5) {
+          b.save(); b.translate(x * TS + TS, y * TS); b.scale(-1, 1); b.drawImage(img, 0, 0); b.restore();
+        } else b.drawImage(img, x * TS, y * TS);
+      } else if (hh(x, y, seed + 7) > 0.96 && !caveAt(x, y) && !carrots[x + ',' + y] && !(x === player.x && y === player.y)) {
+        b.drawImage(spr.mush, x * TS, y * TS);
+      }
+    }
+  }
+
+  /* ---------- messages and HUD ---------- */
+  var msgText = null, msgTone = '';
+  function setMsg(t, tone, force) { if (force || msgText === null) { msgText = t; msgTone = tone || ''; } }
+  function flushMsg() {
+    if (msgText !== null) { el.msg.textContent = msgText; el.msg.setAttribute('data-tone', msgTone); }
+    msgText = null; msgTone = '';
+  }
+  function updateHud() {
+    if (heartsShown !== hp) {
+      heartsShown = hp;
+      el.hearts.innerHTML = '';
+      for (var i = 0; i < MAXHP; i++) {
+        var im = document.createElement('img'); im.alt = ''; im.src = i < hp ? heartFull : heartEmpty;
+        el.hearts.appendChild(im);
+      }
+      el.hearts.setAttribute('aria-label', 'Health ' + Math.max(hp, 0) + ' of ' + MAXHP);
+    }
+    el.carrot.textContent = (carrotTotal - carrotsLeft) + '/' + carrotTotal;
+    el.level.textContent = String(level);
+    el.best.textContent = String(best);
+    var ph = storm.phase;
+    el.sky.setAttribute('data-phase', ph);
+    if (ph === 'calm') { el.skyText.textContent = 'CLEAR'; el.skyBar.style.width = '0%'; }
+    else if (ph === 'warn') { el.skyText.textContent = 'STORM IN ' + storm.t; el.skyBar.style.width = (((WARN + 1 - storm.t) / (WARN + 1)) * 100) + '%'; }
+    else { el.skyText.textContent = 'STORM: ' + storm.t + ' TURN' + (storm.t === 1 ? '' : 'S') + ' LEFT'; el.skyBar.style.width = ((storm.t / storm.len) * 100) + '%'; }
+  }
+
+  /* ---------- turns ---------- */
+  function spawnBolt() {
+    var x = 8 + rnd(VW - 16), y = 0, pts = [], end = 50 + rnd(VH - 60);
+    while (y < end) { pts.push({ x: x, y: y }); x += rnd(5) - 2; y += 3; }
+    bolt = pts; flash = 1;
+  }
+  function tickStorm() {
+    storm.t--;
+    if (storm.t > 0) return;
+    if (storm.phase === 'calm') {
+      storm.phase = 'warn'; storm.t = WARN;
+      setMsg('The sky goes black. A storm is coming. Find a cave.', 'warn', true);
+    } else if (storm.phase === 'warn') {
+      storm.phase = 'storm'; storm.t = storm.len;
+      setMsg('The storm breaks. Get under cover.', 'storm', true);
+      spawnBolt();
+    } else {
+      storm.phase = 'calm'; storm.t = calmLen();
+      setMsg('The storm passes. The forest drips in the dark.', 'good', true);
+    }
+  }
+  function bump(dx, dy) { vx += dx * 0.25; vy += dy * 0.25; }
+
+  function act(dx, dy) {
+    if (state !== 'play') return;
+    if (dx || dy) {
+      var nx = player.x + dx, ny = player.y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H || tiles[ny][nx] === 1) { bump(dx, dy); return; }
+      player.x = nx; player.y = ny; moveT = performance.now();
+    }
+    var key = player.x + ',' + player.y;
+    if (carrots[key]) {
+      delete carrots[key]; carrotsLeft--; total++; sinceHeal++;
+      floaters.push({ x: player.x * TS, y: player.y * TS - 2, text: '+1', col: '#ff8a2a', life: 700 });
+      if (carrotsLeft > 0) setMsg('Crunch. ' + carrotsLeft + ' carrot' + (carrotsLeft === 1 ? '' : 's') + ' left.', 'good');
+      if (sinceHeal >= 3) {
+        sinceHeal = 0;
+        if (hp < MAXHP) { hp++; setMsg('Crunch. Three carrots mend a heart.', 'good', true); }
+      }
+    }
+    tickStorm();
+    var inCave = caveAt(player.x, player.y);
+    if (storm.phase === 'storm' && !inCave) {
+      hp--; hurtT = 300; shake = 8;
+      floaters.push({ x: player.x * TS, y: player.y * TS - 2, text: '-1', col: '#ff5a5f', life: 700 });
+      setMsg('Rain lashes you. You are out in the open.', 'bad', true);
+    } else if (inCave && !wasInCave) {
+      setMsg(storm.phase === 'storm' ? 'Safe in the cave. Press Space to wait it out.' : 'A dry cave. Space waits a turn.', storm.phase === 'storm' ? 'storm' : '');
+    } else if (inCave && storm.phase === 'storm') {
+      setMsg('Sheltered. The storm cannot reach you here.', 'storm');
+    }
+    wasInCave = inCave;
+    if (hp <= 0) { die(); return; }
+    if (carrotsLeft === 0) {
+      level++;
+      if (hp < MAXHP) hp++;
+      genLevel();
+      setMsg('Forest ' + level + '. The trees have rearranged themselves.', 'good', true);
+    }
+    updateHud(); flushMsg();
+  }
+
+  function die() {
+    state = 'dead'; hp = 0;
+    var fresh = total > best;
+    if (fresh) { best = total; saveBest(best); }
+    el.deadCarrots.textContent = String(total);
+    el.deadLevels.textContent = String(level - 1);
+    el.deadBest.textContent = String(best);
+    el.newBest.hidden = !fresh;
+    el.veilDead.hidden = false;
+    msgText = null; el.msg.textContent = 'The storm got you.'; el.msg.setAttribute('data-tone', 'bad');
+    updateHud();
+    var b = document.getElementById('againBtn');
+    setTimeout(function () { try { b.focus(); } catch (e) {} }, 50);
+  }
+
+  function start() {
+    level = 1; hp = MAXHP; total = 0; sinceHeal = 0; floaters = []; hurtT = 0; shake = 0;
+    genLevel();
+    state = 'play';
+    el.veilTitle.hidden = true; el.veilDead.hidden = true;
+    heartsShown = -1;
+    msgText = null;
+    el.msg.textContent = 'Hop to find carrots. Watch the sky.'; el.msg.setAttribute('data-tone', '');
+    updateHud();
+    try { stage.focus({ preventScroll: true }); } catch (e) {}
+  }
+
+  /* ---------- input ---------- */
+  var KEYS = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0] };
+  var lastAct = 0;
+  function throttled(dx, dy) { var n = performance.now(); if (n - lastAct < 80) return; lastAct = n; act(dx, dy); }
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    var isBtn = e.target && e.target.tagName === 'BUTTON';
+    if (state !== 'play') {
+      if ((k === 'Enter' || k === ' ') && !isBtn) { e.preventDefault(); start(); }
+      return;
+    }
+    var m = KEYS[k];
+    if (m) { e.preventDefault(); throttled(m[0], m[1]); return; }
+    if ((k === ' ' || k === '.' || k === 'z') && !isBtn) { e.preventDefault(); throttled(0, 0); }
+  });
+
+  function bindPad(id, dx, dy) {
+    var btn = document.getElementById(id), tm = null, iv = null;
+    function go() { throttled(dx, dy); }
+    function stop() { clearTimeout(tm); clearInterval(iv); tm = iv = null; }
+    btn.addEventListener('pointerdown', function (e) { e.preventDefault(); go(); stop(); tm = setTimeout(function () { iv = setInterval(go, 150); }, 320); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (n) { btn.addEventListener(n, stop); });
+    btn.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  }
+  bindPad('bUp', 0, -1); bindPad('bDown', 0, 1); bindPad('bLeft', -1, 0); bindPad('bRight', 1, 0); bindPad('bWait', 0, 0);
+
+  var tsx = 0, tsy = 0;
+  cv.addEventListener('touchstart', function (e) { var t = e.changedTouches[0]; tsx = t.clientX; tsy = t.clientY; }, { passive: true });
+  cv.addEventListener('touchend', function (e) {
+    if (state !== 'play') return;
+    var t = e.changedTouches[0], dx = t.clientX - tsx, dy = t.clientY - tsy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    if (Math.abs(dx) > Math.abs(dy)) throttled(dx > 0 ? 1 : -1, 0); else throttled(0, dy > 0 ? 1 : -1);
+  }, { passive: true });
+
+  document.getElementById('startBtn').addEventListener('click', start);
+  document.getElementById('againBtn').addEventListener('click', start);
+
+  /* ---------- ambience ---------- */
+  var drops = [], flies = [], i0;
+  for (i0 = 0; i0 < 70; i0++) drops.push({ x: Math.random() * (VW + 20), y: Math.random() * VH, s: 0.8 + Math.random() * 0.5 });
+  for (i0 = 0; i0 < 14; i0++) flies.push({ x: Math.random() * VW, y: Math.random() * VH, a: Math.random() * 6.28, ph: Math.random() * 6.28 });
+  function shownPhase() { return state === 'play' ? storm.phase : (state === 'title' ? 'storm' : 'storm'); }
+
+  /* ---------- render loop ---------- */
+  var last = 0;
+  function frame(ts) {
+    var dt = Math.min(50, ts - last) || 16; last = ts;
+    var ph = shownPhase(), i;
+    var ease = Math.min(1, dt * 0.02);
+    vx += (player.x - vx) * ease; vy += (player.y - vy) * ease;
+    if (Math.abs(player.x - vx) < 0.01) vx = player.x;
+    if (Math.abs(player.y - vy) < 0.01) vy = player.y;
+    flash = Math.max(0, flash - dt * 0.004);
+    hurtT = Math.max(0, hurtT - dt);
+    if (shake > 0) shake--;
+    if (ph === 'storm' && flash <= 0 && Math.random() < dt * 0.0007) spawnBolt();
+    for (i = 0; i < drops.length; i++) {
+      var d = drops[i];
+      d.y += dt * 0.25 * d.s; d.x -= dt * 0.07 * d.s;
+      if (d.y > VH) { d.y = -3; d.x = Math.random() * (VW + 20); }
+      if (d.x < -2) d.x += VW + 20;
+    }
+    for (i = 0; i < flies.length; i++) {
+      var f = flies[i];
+      f.a += (Math.random() - 0.5) * 0.2;
+      f.x += Math.cos(f.a) * 0.012 * dt; f.y += Math.sin(f.a) * 0.012 * dt;
+      if (f.x < 0) f.x += VW; if (f.x > VW) f.x -= VW; if (f.y < 0) f.y += VH; if (f.y > VH) f.y -= VH;
+    }
+    for (i = floaters.length - 1; i >= 0; i--) { floaters[i].life -= dt; floaters[i].y -= dt * 0.012; if (floaters[i].life <= 0) floaters.splice(i, 1); }
+    draw(ts, ph);
+    requestAnimationFrame(frame);
+  }
+
+  function draw(ts, ph) {
+    var px = vx + 0.5, py = vy + 0.5, x, y, i;
+    ctx.save();
+    if (shake > 0 && !reduce) ctx.translate(rnd(3) - 1, rnd(3) - 1);
+    ctx.drawImage(bg, 0, 0);
+
+    var maxA = ph === 'storm' ? 0.9 : 0.86, minA = 0.12, fl = 1 - flash * 0.85;
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      var dd = Math.sqrt((x + 0.5 - px) * (x + 0.5 - px) + (y + 0.5 - py) * (y + 0.5 - py));
+      var a = (minA + (maxA - minA) * smooth(1.8, 6.5, dd)) * fl;
+      ctx.fillStyle = 'rgba(2,5,9,' + a.toFixed(2) + ')';
+      ctx.fillRect(x * TS, y * TS, TS, TS);
+    }
+    if (ph === 'warn') {
+      var wp = (WARN + 1 - storm.t) / (WARN + 1);
+      ctx.fillStyle = 'rgba(18,28,60,' + (0.05 + 0.2 * wp).toFixed(2) + ')'; ctx.fillRect(0, 0, VW, VH);
+    } else if (ph === 'storm') {
+      ctx.fillStyle = 'rgba(14,24,56,0.3)'; ctx.fillRect(0, 0, VW, VH);
+    }
+
+    for (i = 0; i < caves.length; i++) {
+      var c = caves[i], cx = c.x * TS, cy = c.y * TS;
+      var cd = Math.sqrt((c.x + 0.5 - px) * (c.x + 0.5 - px) + (c.y + 0.5 - py) * (c.y + 0.5 - py));
+      var pulse = 0.5 + 0.5 * Math.sin(ts / 400 + c.x);
+      ctx.fillStyle = 'rgba(255,190,90,' + (0.05 + 0.05 * pulse).toFixed(3) + ')';
+      ctx.fillRect(cx - 2, cy - 2, TS + 4, TS + 4);
+      ctx.globalAlpha = 0.7 + 0.3 * (1 - smooth(2, 7, cd));
+      ctx.drawImage(spr.cave, cx, cy);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = Math.sin(ts / 170 + c.y) > -0.5 ? '#ffd27a' : '#c98b3a';
+      ctx.fillRect(cx + TS - 2, cy + 1, 1, 1);
+      if (ph === 'warn' || ph === 'storm') {
+        ctx.strokeStyle = 'rgba(127,178,255,' + (0.5 + 0.4 * pulse).toFixed(2) + ')';
+        ctx.lineWidth = 1; ctx.strokeRect(cx + 0.5, cy + 0.5, TS - 1, TS - 1);
+      }
+    }
+
+    for (var key in carrots) {
+      var cr = carrots[key];
+      var rd = Math.sqrt((cr.x + 0.5 - px) * (cr.x + 0.5 - px) + (cr.y + 0.5 - py) * (cr.y + 0.5 - py));
+      var bob = Math.round(Math.sin(ts / 300 + cr.x * 2 + cr.y) * 0.6);
+      ctx.fillStyle = 'rgba(255,138,42,0.08)'; ctx.fillRect(cr.x * TS - 1, cr.y * TS - 1, TS + 2, TS + 2);
+      ctx.globalAlpha = 0.55 + 0.45 * (1 - smooth(3, 7, rd));
+      ctx.drawImage(spr.carrot, cr.x * TS, cr.y * TS + bob);
+      ctx.globalAlpha = 1;
+    }
+
+    var hop = Math.abs(Math.sin(clamp((ts - moveT) / 150, 0, 1) * Math.PI)) * 2;
+    ctx.globalAlpha = caveAt(player.x, player.y) ? 0.85 : 1;
+    ctx.drawImage(hurtT > 0 ? spr.bunnyHurt : spr.bunny, Math.round(vx * TS), Math.round(vy * TS - hop));
+    ctx.globalAlpha = 1;
+
+    if (ph !== 'storm') {
+      for (i = 0; i < flies.length; i++) {
+        var f = flies[i], on = Math.sin(ts / 500 + f.ph);
+        if (on > -0.2) {
+          ctx.fillStyle = 'rgba(227,255,138,0.10)'; ctx.fillRect(Math.round(f.x) - 1, Math.round(f.y) - 1, 3, 3);
+          ctx.fillStyle = 'rgba(227,255,138,0.9)'; ctx.fillRect(Math.round(f.x), Math.round(f.y), 1, 1);
+        }
+      }
+    }
+    if (ph === 'warn' || ph === 'storm') {
+      var n = ph === 'storm' ? drops.length : Math.floor(drops.length * 0.3);
+      ctx.fillStyle = ph === 'storm' ? 'rgba(170,205,245,0.6)' : 'rgba(170,205,245,0.35)';
+      for (i = 0; i < n; i++) ctx.fillRect(Math.round(drops[i].x), Math.round(drops[i].y), 1, 3);
+    }
+    if (flash > 0) {
+      if (bolt && flash > 0.45) {
+        ctx.fillStyle = '#fffbd0';
+        for (i = 0; i < bolt.length; i++) ctx.fillRect(bolt[i].x, bolt[i].y, 2, 3);
+      }
+      ctx.fillStyle = 'rgba(215,230,255,' + (flash * (reduce ? 0.12 : 0.35)).toFixed(2) + ')';
+      ctx.fillRect(0, 0, VW, VH);
+    }
+    if (hurtT > 0) { ctx.fillStyle = 'rgba(255,40,50,' + ((hurtT / 300) * 0.22).toFixed(2) + ')'; ctx.fillRect(0, 0, VW, VH); }
+    ctx.font = '8px "Press Start 2P", monospace';
+    for (i = 0; i < floaters.length; i++) {
+      var fo = floaters[i];
+      ctx.fillStyle = fo.col; ctx.globalAlpha = clamp(fo.life / 300, 0, 1);
+      ctx.fillText(fo.text, Math.round(fo.x), Math.round(fo.y));
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  /* ---------- boot ---------- */
+  genLevel();
+  updateHud();
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
