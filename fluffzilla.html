@@ -25,7 +25,7 @@ button:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
   <div class="grp"><button data-k="up" aria-label="Jump or climb">&#9650;</button><button data-k="punch">PAW</button><button data-k="special">&#9733;</button></div>
 </div>
 <div class="legend">
-  <span><b>&larr; &rarr;</b> MOVE</span><span><b>&uarr;</b> JUMP / CLIMB WALLS</span><span><b>Z</b> PUNCH</span><span><b>X</b> SPECIAL</span><span><b>M</b> SOUND</span>
+  <span><b>&larr; &rarr;</b> MOVE</span><span><b>&uarr;</b> JUMP / CLIMB WALLS</span><span><b>Z</b> PUNCH</span><span><b>X</b> SPECIAL</span><span><b>M</b> SOUND</span><span><b>PAD</b> STICK MOVE, A JUMP/CLIMB, X PUNCH, Y SPECIAL</span>
 </div>
 <button class="snd" id="snd" type="button">SOUND: ON</button>
 
@@ -247,7 +247,7 @@ const HW=11,HH_=34;
 function hurt(n){
   if(P.inv>0||S!=='play')return;
   if(P.shield>0){P.shield--;P.inv=45;pop(P.x,P.y-44,'BLOCKED','#7ff0c8');SFX.pick();return}
-  P.hp-=n;P.inv=65;shake=7;glitch=1;SFX.hurt();spark(P.x,P.y-18,'#ff6fae',10);
+  P.hp-=n;P.inv=65;shake=7;glitch=1;SFX.hurt();rumble(220,.8);spark(P.x,P.y-18,'#ff6fae',10);
   if(P.hp<=0){
     if(P.lives>0){P.lives--;P.hp=Math.ceil(P.max/2);P.inv=140;pop(P.x,P.y-44,'NINE LIVES!','#ffe27a');glitch=1;ring(P.x,P.y-16,70,'#ffe27a')}
     else{S='dead';deadT=0;SFX.die();try{if(P.score>hs){hs=P.score;localStorage.setItem('fz_hs',String(hs))}}catch(e){}}
@@ -268,7 +268,7 @@ function blast(x,y,r,d){
 }
 function special(){
   P.spCd=P.spMax;ring(P.x,P.y-16,90,'#ffffff');ring(P.x,P.y-16,60,'#ff6fae');blast(P.x,P.y-16,84,3+Math.floor(P.dmg/2));
-  shake=Math.max(shake,9);glitch=1;SFX.special();
+  shake=Math.max(shake,9);glitch=1;SFX.special();rumble(300,.6);
 }
 function doPunch(){
   const e=P.face>0?P.x+HW:P.x-HW;
@@ -409,8 +409,26 @@ cv.addEventListener('pointerdown',e=>{
   else if(S==='pick'){choose(Math.max(0,Math.min(2,Math.floor((x-10)/124))))}
   else if(S==='dead'&&deadT>50)S='title';
 });
+/* ---------- gamepad ---------- */
+let padPrev={},padGo=false,padMsg=0;
+addEventListener('gamepadconnected',()=>{padMsg=220});
+function getPad(){try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const x of l)if(x&&x.connected)return x}catch(e){}return null}
+function rumble(d,m){try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const x of l){const v=x&&x.vibrationActuator;if(v&&v.playEffect)v.playEffect('dual-rumble',{duration:d,strongMagnitude:m,weakMagnitude:m})}}catch(e){}}
+function pollPad(){
+  const gp=getPad();
+  if(!gp){for(const a in padPrev)if(padPrev[a])K[a]=false;padPrev={};padGo=false;return}
+  const b=i=>!!(gp.buttons[i]&&gp.buttons[i].pressed),ax=gp.axes[0]||0,ay=gp.axes[1]||0;
+  const cur={left:ax<-.4||b(14),right:ax>.4||b(15),up:ay<-.5||b(12)||b(0),down:ay>.5||b(13),jump:b(0)||b(1),punch:b(2)||b(5)||b(7),special:b(3)||b(4)||b(6)};
+  const go=b(0)||b(9);
+  for(const a in cur)if(cur[a]!==!!padPrev[a]){
+    K[a]=cur[a];if(cur[a]){J[a]=true;if(S!=='play'){if(a==='left')menuKey('ArrowLeft');else if(a==='right')menuKey('ArrowRight')}}
+  }
+  if(go&&!padGo&&S!=='play'){menuKey('Enter');for(const k in J)J[k]=false}
+  padPrev=cur;padGo=go;
+}
+function drawPadMsg(){if(padMsg>0){padMsg--;txt('GAMEPAD CONNECTED',W/2,H-26,'#7ff0c8','center')}}
 function update(){
-  t++;
+  t++;pollPad();
   if(S==='play'){
     updPlayer();updEnemies();updBullets();updPickups();updFx();
     if(banner>0)banner--;
@@ -625,9 +643,10 @@ function present(){
 }
 function render(){
   g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;
-  if(S==='title'){renderTitle();return}
+  if(S==='title'){renderTitle();drawPadMsg();return}
   renderWorld();hud();
   if(S==='pick')renderPick();else if(S==='dead')renderDead();
+  drawPadMsg();
 }
 
 /* ---------- loop ---------- */
