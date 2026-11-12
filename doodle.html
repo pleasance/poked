@@ -1,0 +1,490 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Doodle Blorp</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+<style>
+:root {
+  /* Layout: one chunky 16-bit "window". Title bar, big canvas, then shelves for tools, colors, stamps. */
+  --bg: #1c1a3a;
+  --panel: #c8c8e6;
+  --hi: #f4f4ff;
+  --lo: #6f6f9e;
+  --ink: #14122e;
+  --accent: #ff4f6d;
+  --glow: #ffd93b;
+  --font: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  padding-block: 20px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.win {
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--panel);
+  box-shadow: inset 3px 3px 0 var(--hi), inset -3px -3px 0 var(--lo), 0 0 0 4px var(--ink), 8px 8px 0 4px #0b0a1e;
+}
+.title {
+  background: var(--ink);
+  color: var(--glow);
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.title small { font-size: 7px; color: var(--hi); letter-spacing: 0; line-height: 1.5; }
+.content { padding: 14px; display: grid; gap: 14px; min-width: 0; }
+.frame { border: 4px solid var(--ink); background: #fff; line-height: 0; box-shadow: 0 0 0 3px var(--lo); }
+.stage { position: relative; aspect-ratio: 160 / 100; width: 100%; }
+.stage canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated;
+  display: block;
+}
+#over { touch-action: none; cursor: crosshair; }
+.lab { font-size: 7px; letter-spacing: 1px; margin-bottom: 8px; color: var(--ink); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+.row .btn { flex: 1 1 auto; }
+.btn {
+  font: inherit; font-size: 9px; color: var(--ink);
+  background: var(--panel); border: 0; padding: 11px 8px; cursor: pointer;
+  box-shadow: inset 2px 2px 0 var(--hi), inset -2px -2px 0 var(--lo), 0 0 0 2px var(--ink);
+}
+.btn:active, .btn[aria-pressed="true"] {
+  background: var(--accent);
+  box-shadow: inset 2px 2px 0 #b52b45, inset -2px -2px 0 #ff9fb0, 0 0 0 2px var(--ink);
+}
+.btn:focus-visible, .sw:focus-visible { outline: 3px solid var(--glow); outline-offset: 3px; }
+.pal, .stamps { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
+.sw { aspect-ratio: 1; border: 0; padding: 0; cursor: pointer; box-shadow: 0 0 0 2px var(--ink); }
+.sw[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 2px var(--ink), 0 0 0 5px var(--hi); }
+.st { aspect-ratio: 1; display: grid; place-items: center; padding: 4px; }
+.st canvas { width: 80%; height: auto; image-rendering: pixelated; pointer-events: none; }
+.lcd {
+  background: #0b0a1e; color: var(--glow); font-size: 8px; line-height: 1.7;
+  padding: 10px 12px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px;
+  box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px #2a2860;
+}
+.lcd span { min-width: 0; }
+@media (max-width: 420px) {
+  .btn { font-size: 8px; padding: 10px 6px; }
+  .pal, .stamps { gap: 8px; }
+}
+</style>
+
+<div class="win">
+  <div class="title">
+    <span>DOODLE BLORP</span>
+    <small>click &amp; drag to paint</small>
+  </div>
+  <div class="content">
+    <div class="frame">
+      <div class="stage" id="stage">
+        <canvas id="main" aria-label="Drawing canvas"></canvas>
+        <canvas id="over"></canvas>
+      </div>
+    </div>
+    <div class="lcd" aria-live="polite"><span id="msg"></span><span id="score"></span></div>
+    <div>
+      <div class="lab">TOOLS</div>
+      <div class="row" id="tools"></div>
+    </div>
+    <div>
+      <div class="lab">COLORS</div>
+      <div class="pal" id="pal"></div>
+    </div>
+    <div>
+      <div class="lab">STAMPS</div>
+      <div class="stamps" id="stamps"></div>
+    </div>
+    <div class="row" id="actions"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var W = 160, H = 100;
+  var main = document.getElementById('main'), over = document.getElementById('over');
+  main.width = over.width = W; main.height = over.height = H;
+  var g = main.getContext('2d', { willReadFrequently: true }), o = over.getContext('2d');
+  g.imageSmoothingEnabled = false; o.imageSmoothingEnabled = false;
+
+  var COLORS = [
+    ['#000000', 'black'], ['#7c7c7c', 'gray'], ['#bcbcbc', 'silver'], ['#ffffff', 'white'],
+    ['#e0303a', 'red'], ['#f77622', 'orange'], ['#ffd93b', 'yellow'], ['#3bb54a', 'green'],
+    ['#0b7a3e', 'forest'], ['#2fd0d0', 'cyan'], ['#2c6cf0', 'blue'], ['#1d2b8f', 'navy'],
+    ['#8a3ffc', 'purple'], ['#f06ac8', 'pink'], ['#8b5a2b', 'brown'], ['#ffc9a0', 'peach']
+  ];
+  var TOOLS = [['pencil', 'PENCIL'], ['brush', 'BRUSH'], ['spray', 'SPRAY'], ['fill', 'FILL'], ['erase', 'ERASE']];
+  var QUIPS = {
+    pencil: ['scribble scribble', 'tiny lines, big dreams'],
+    brush: ['chonky strokes', 'paint goes brrr'],
+    spray: ['pssshhh', 'cloud simulator 2000'],
+    fill: ['bucket time!', 'dump it all'],
+    erase: ['poof!', 'nobody saw that']
+  };
+  var SC = { X: '#14122e', W: '#ffffff', N: '#6b3f1d', Y: '#ffd93b', B: '#7a4b12', C: '#e8a14a', R: '#e0303a', G: '#3bb54a', P: '#ffb3b8' };
+  var STAMPS = [
+    { name: 'Googly Eye', quip: 'it sees you', rows: [
+      '..XXXXX..', '.XWWWWWX.', 'XWWWWWWWX', 'XWWWXXWWX', 'XWWWXXWWX', 'XWWWWWWWX', 'XWWWWWWWX', '.XWWWWWX.', '..XXXXX..'] },
+    { name: 'Mustache', quip: 'tres fancy', rows: [
+      '.NNNN...NNNN.', 'NNNNNNNNNNNNN', 'NNNNNNNNNNNNN', '.NNN.....NNN.', 'N.N.......N.N'] },
+    { name: 'Banana', quip: 'a-peel-ing', rows: [
+      '.......BB.', '......BYYB', '.....BYYYB', '....BYYYYB', '...BYYYYB.', '..BYYYYB..', '.BYYYYB...', 'BYYYYB....', 'BYYYB.....', '.BBB......'] },
+    { name: 'Pizza', quip: 'extra cheese', rows: [
+      'CCCCCCCCCCC', 'CYYYYYYYYYC', '.CYYRRYYYC.', '.CYRRRRYYC.', '..CYRRYYC..', '..CYYYYYC..', '...CYYRYC..', '...CYYYYC..', '....CYYC...', '....CYYC...', '.....CC....'] },
+    { name: 'Ghost', quip: 'boo!', rows: [
+      '..XXXXX..', '.XWWWWWX.', 'XWWWWWWWX', 'XWWXWWXWX', 'XWWXWWXWX', 'XWWWWWWWX', 'XWWWXXWWX', 'XWWWWWWWX', 'XWXWWXWXX', '.X.XX.X..'] },
+    { name: 'Star', quip: 'ooh shiny', rows: [
+      '....X....', '...XYX...', '...XYX...', 'XXXXYXXXX', 'XYYYYYYYX', '.XYYYYYX.', '..XYYYX..', '..XYXYX..', '..XX.XX..'] },
+    { name: 'Frog', quip: 'ribbit', rows: [
+      '.XXXX...XXXX.', 'XWWWWXXXWWWWX', 'XWXXWGGGWXXWX', 'XGGGGGGGGGGGX', 'XGGGGGGGGGGGX', 'XGXGGGGGGGXGX', 'XGGRRRRRRRGGX', '.XGGGGGGGGGX.', '..XXXXXXXXX..'] },
+    { name: 'Heart', quip: 'aww', rows: [
+      '.RRR.RRR.', 'RRRRRRRRR', 'RPRRRRRRR', 'RRRRRRRRR', '.RRRRRRR.', '..RRRRR..', '...RRR...', '....R....'] }
+  ];
+  STAMPS.forEach(function (s) { s.w = s.rows[0].length; s.h = s.rows.length; });
+
+  var tool = 'pencil', ci = 4, si = 0, swat = false, muted = false, score = 0;
+  var drawing = false, last = null, hover = null, undoStack = [];
+  var clearArmed = false, clearTimer = 0;
+  var fly = { x: 80, y: 40, vx: 1, vy: 0.6, hideUntil: 0 };
+  var ring = null, lastBlip = 0, lastBuzz = 0;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var rnd = function (a) { return a[Math.floor(Math.random() * a.length)]; };
+  function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+  function setMsg(t) { $('msg').textContent = t; }
+  function updateScore() { $('score').textContent = 'SPLATS ' + score; }
+
+  /* ---------- sound ---------- */
+  var ac = null;
+  function audio() {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ac = null; } }
+    if (ac && ac.state === 'suspended') { try { ac.resume(); } catch (e) {} }
+    return ac;
+  }
+  function tone(f, d, type, v, to) {
+    if (muted) return; var a = audio(); if (!a) return;
+    var t = a.currentTime, os = a.createOscillator(), gn = a.createGain();
+    os.type = type || 'square';
+    os.frequency.setValueAtTime(f, t);
+    if (to) os.frequency.exponentialRampToValueAtTime(to, t + d);
+    gn.gain.setValueAtTime(v || 0.05, t);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    os.connect(gn); gn.connect(a.destination);
+    os.start(t); os.stop(t + d + 0.02);
+  }
+  function noise(d, v, cut) {
+    if (muted) return; var a = audio(); if (!a) return;
+    var n = Math.floor(a.sampleRate * d), buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0);
+    for (var i = 0; i < n; i++) ch[i] = Math.random() * 2 - 1;
+    var src = a.createBufferSource(), lp = a.createBiquadFilter(), gn = a.createGain(), t = a.currentTime;
+    src.buffer = buf; lp.type = 'lowpass'; lp.frequency.value = cut || 1500;
+    gn.gain.setValueAtTime(v || 0.15, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    src.connect(lp); lp.connect(gn); gn.connect(a.destination); src.start(t);
+  }
+  function boing() { tone(200, 0.12, 'sine', 0.12, 600); setTimeout(function () { tone(600, 0.16, 'sine', 0.1, 260); }, 110); }
+
+  /* ---------- pixel helpers ---------- */
+  function px(x, y, c) { g.fillStyle = c; g.fillRect(x, y, 1, 1); }
+  function sq(cx, cy, s, c) { var h = Math.floor(s / 2); g.fillStyle = c; g.fillRect(cx - h, cy - h, s, s); }
+  function disc(cx, cy, r, c) {
+    g.fillStyle = c;
+    for (var y = -r; y <= r; y++) for (var x = -r; x <= r; x++) if (x * x + y * y <= r * r + r * 0.4) g.fillRect(cx + x, cy + y, 1, 1);
+  }
+  function line(x0, y0, x1, y1, f) {
+    var dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1, dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1, err = dx + dy;
+    for (;;) {
+      f(x0, y0);
+      if (x0 === x1 && y0 === y1) break;
+      var e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+  function stampTL(ctx, s, x, y) {
+    for (var r = 0; r < s.h; r++) for (var c = 0; c < s.w; c++) {
+      var ch = s.rows[r][c];
+      if (ch !== '.') { ctx.fillStyle = SC[ch]; ctx.fillRect(x + c, y + r, 1, 1); }
+    }
+  }
+  function stampAt(ctx, s, cx, cy) { stampTL(ctx, s, cx - Math.floor(s.w / 2), cy - Math.floor(s.h / 2)); }
+  function u32(hex) {
+    var r = parseInt(hex.slice(1, 3), 16), gg = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    return ((255 << 24) | (b << 16) | (gg << 8) | r) >>> 0;
+  }
+  function floodFill(x, y, hex) {
+    var img = g.getImageData(0, 0, W, H), d = new Uint32Array(img.data.buffer);
+    var target = d[y * W + x], rep = u32(hex);
+    if (target === rep) return;
+    var stack = [y * W + x];
+    while (stack.length) {
+      var i = stack.pop();
+      if (d[i] !== target) continue;
+      d[i] = rep;
+      var cx = i % W;
+      if (cx > 0) stack.push(i - 1);
+      if (cx < W - 1) stack.push(i + 1);
+      if (i >= W) stack.push(i - W);
+      if (i < W * (H - 1)) stack.push(i + W);
+    }
+    g.putImageData(img, 0, 0);
+  }
+  function pushUndo() { undoStack.push(g.getImageData(0, 0, W, H)); if (undoStack.length > 30) undoStack.shift(); }
+
+  /* ---------- tools ---------- */
+  function strokeSeg(x0, y0, x1, y1) {
+    var c = COLORS[ci][0];
+    line(x0, y0, x1, y1, function (x, y) {
+      if (tool === 'pencil') sq(x, y, 1, c);
+      else if (tool === 'brush') sq(x, y, 3, c);
+      else if (tool === 'erase') sq(x, y, 5, '#ffffff');
+      else if (tool === 'spray') {
+        for (var k = 0; k < 2; k++) {
+          var a = Math.random() * 6.283, r = Math.sqrt(Math.random()) * 5;
+          px(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), c);
+        }
+      }
+    });
+  }
+  function blip(x) {
+    var now = performance.now();
+    if (now - lastBlip < 55) return; lastBlip = now;
+    if (tool === 'pencil') tone(300 + x * 3, 0.04, 'square', 0.04);
+    else if (tool === 'brush') tone(200 + x * 2.5, 0.05, 'triangle', 0.07);
+    else if (tool === 'spray') noise(0.05, 0.05, 4000);
+    else if (tool === 'erase') tone(120, 0.04, 'triangle', 0.06);
+  }
+  function splat(x, y) {
+    pushUndo();
+    for (var i = 0; i < 34; i++) {
+      var a = Math.random() * 6.283, r = Math.pow(Math.random(), 0.6) * 6;
+      px(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), '#7bd02a');
+    }
+    for (var j = 0; j < 7; j++) {
+      var b = Math.random() * 6.283, q = 7 + Math.random() * 5;
+      px(Math.round(x + Math.cos(b) * q), Math.round(y + Math.sin(b) * q), '#7bd02a');
+    }
+    g.fillStyle = '#3a7d12'; g.fillRect(x - 1, y - 1, 2, 2);
+  }
+  function swatAt(x, y) {
+    ring = { x: x, y: y, t: performance.now() };
+    var fx = fly.x + 1, fy = fly.y + 1, visible = performance.now() >= fly.hideUntil;
+    if (visible && Math.hypot(x - fx, y - fy) <= 7) {
+      splat(Math.round(fx), Math.round(fy));
+      noise(0.18, 0.25, 900); tone(220, 0.15, 'square', 0.06, 60);
+      score++; updateScore();
+      fly.hideUntil = performance.now() + 600;
+      setMsg(rnd(['SPLAT! gross.', 'got it!', 'bzzt... dead.', 'fly down!', 'splatted!']));
+    } else {
+      noise(0.08, 0.08, 3000);
+      setMsg(rnd(['missed!', 'whiff!', 'too slow!', 'it laughs at you']));
+    }
+  }
+  function spawnFly() {
+    fly.x = 8 + Math.random() * (W - 16); fly.y = 8 + Math.random() * (H - 16);
+    var a = Math.random() * 6.283; fly.vx = Math.cos(a) * 1.2; fly.vy = Math.sin(a) * 1.2;
+  }
+
+  /* ---------- UI ---------- */
+  var toolBtns = [], stBtns = [], swBtns = [];
+  function setTool(id, idx) {
+    tool = id; if (idx != null) si = idx;
+    toolBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.tool === tool)); });
+    stBtns.forEach(function (b, i) { b.setAttribute('aria-pressed', String(tool === 'stamp' && i === si)); });
+    if (swat) setSwat(false);
+    if (tool === 'stamp') setMsg(STAMPS[si].name.toUpperCase() + ' - ' + STAMPS[si].quip);
+    else setMsg(tool.toUpperCase() + ' - ' + rnd(QUIPS[tool]));
+    tone(520, 0.05, 'square', 0.04);
+  }
+  function setColor(i) {
+    ci = i;
+    swBtns.forEach(function (b, k) { b.setAttribute('aria-pressed', String(k === ci)); });
+    if (tool === 'erase' || tool === 'stamp') setTool('pencil');
+    setMsg(COLORS[ci][1].toUpperCase() + ' - nice pick');
+    tone(380 + i * 30, 0.05, 'square', 0.04);
+  }
+  var swatBtn, soundBtn, clearBtn;
+  function setSwat(on) {
+    swat = on;
+    swatBtn.setAttribute('aria-pressed', String(on));
+    swatBtn.textContent = on ? 'SWAT: ON' : 'SWAT: OFF';
+    if (on) {
+      drawing = false; spawnFly();
+      toolBtns.forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+      stBtns.forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+      setMsg('a fly! click it to splat!');
+      audio();
+    } else { setMsg('back to doodling'); }
+  }
+
+  TOOLS.forEach(function (t) {
+    var b = mk('button', 'btn', t[1]); b.type = 'button'; b.dataset.tool = t[0];
+    b.addEventListener('click', function () { setTool(t[0]); });
+    $('tools').appendChild(b); toolBtns.push(b);
+  });
+  COLORS.forEach(function (c, i) {
+    var b = mk('button', 'sw'); b.type = 'button'; b.style.background = c[0];
+    b.setAttribute('aria-label', c[1]); b.title = c[1];
+    b.addEventListener('click', function () { setColor(i); });
+    $('pal').appendChild(b); swBtns.push(b);
+  });
+  STAMPS.forEach(function (s, i) {
+    var b = mk('button', 'btn st'); b.type = 'button'; b.title = s.name; b.setAttribute('aria-label', s.name + ' stamp');
+    var cv = document.createElement('canvas'); cv.width = s.w; cv.height = s.h;
+    stampTL(cv.getContext('2d'), s, 0, 0); b.appendChild(cv);
+    b.addEventListener('click', function () { setTool('stamp', i); });
+    $('stamps').appendChild(b); stBtns.push(b);
+  });
+  function action(label, fn) {
+    var b = mk('button', 'btn', label); b.type = 'button'; b.addEventListener('click', fn);
+    $('actions').appendChild(b); return b;
+  }
+  function doUndo() {
+    var im = undoStack.pop();
+    if (!im) { setMsg('nothing to undo'); return; }
+    g.putImageData(im, 0, 0); tone(500, 0.1, 'square', 0.05, 250); setMsg('undone. never happened.');
+  }
+  action('UNDO', doUndo);
+  clearBtn = action('CLEAR', function () {
+    if (!clearArmed) {
+      clearArmed = true; clearBtn.textContent = 'SURE?'; setMsg('click again to wipe everything');
+      clearTimer = setTimeout(function () { clearArmed = false; clearBtn.textContent = 'CLEAR'; }, 2000);
+      return;
+    }
+    clearTimeout(clearTimer); clearArmed = false; clearBtn.textContent = 'CLEAR';
+    pushUndo(); g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    [440, 330, 220, 110].forEach(function (f, k) { setTimeout(function () { tone(f, 0.1, 'square', 0.05); }, k * 70); });
+    setMsg('fresh canvas. blank stare.');
+  });
+  swatBtn = action('SWAT: OFF', function () { setSwat(!swat); });
+  swatBtn.setAttribute('aria-pressed', 'false');
+  soundBtn = action('SOUND: ON', function () {
+    muted = !muted; soundBtn.textContent = muted ? 'SOUND: OFF' : 'SOUND: ON';
+    if (!muted) tone(660, 0.08, 'square', 0.05);
+  });
+
+  /* ---------- pointer ---------- */
+  function pos(e) {
+    var r = over.getBoundingClientRect();
+    var x = Math.floor((e.clientX - r.left) / r.width * W), y = Math.floor((e.clientY - r.top) / r.height * H);
+    return [Math.max(0, Math.min(W - 1, x)), Math.max(0, Math.min(H - 1, y))];
+  }
+  over.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  over.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    try { over.setPointerCapture(e.pointerId); } catch (err) {}
+    audio();
+    var p = pos(e); hover = p;
+    if (swat) { swatAt(p[0], p[1]); return; }
+    pushUndo();
+    if (tool === 'fill') { floodFill(p[0], p[1], COLORS[ci][0]); tone(160, 0.3, 'sawtooth', 0.05, 900); return; }
+    if (tool === 'stamp') {
+      stampAt(g, STAMPS[si], p[0], p[1]); boing(); setMsg(STAMPS[si].name.toUpperCase() + ' - ' + STAMPS[si].quip); return;
+    }
+    drawing = true; last = p; strokeSeg(p[0], p[1], p[0], p[1]); blip(p[0]);
+  });
+  over.addEventListener('pointermove', function (e) {
+    var p = pos(e); hover = p;
+    if (!drawing) return;
+    strokeSeg(last[0], last[1], p[0], p[1]); last = p; blip(p[0]);
+  });
+  function stop() { drawing = false; }
+  over.addEventListener('pointerup', stop);
+  over.addEventListener('pointercancel', stop);
+  over.addEventListener('pointerleave', function () { if (!drawing) hover = null; });
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); doUndo(); }
+  });
+
+  /* ---------- overlay loop (hover preview, fly, swat ring) ---------- */
+  function outline(x, y, s) {
+    o.fillStyle = '#14122e';
+    o.fillRect(x - 1, y - 1, s + 2, 1); o.fillRect(x - 1, y + s, s + 2, 1);
+    o.fillRect(x - 1, y, 1, s); o.fillRect(x + s, y, 1, s);
+  }
+  var lastT = 0;
+  function loop(ts) {
+    var dt = Math.min(3, (ts - lastT) / 16.7 || 1); lastT = ts;
+    o.clearRect(0, 0, W, H);
+    if (hover && !swat) {
+      if (tool === 'stamp') { o.globalAlpha = 0.55; stampAt(o, STAMPS[si], hover[0], hover[1]); o.globalAlpha = 1; }
+      else {
+        var s = { pencil: 1, brush: 3, erase: 5, fill: 1, spray: 9 }[tool], h = Math.floor(s / 2);
+        var sx = hover[0] - h, sy = hover[1] - h;
+        if (tool !== 'erase' && tool !== 'spray') { o.globalAlpha = 0.6; o.fillStyle = COLORS[ci][0]; o.fillRect(sx, sy, s, s); o.globalAlpha = 1; }
+        outline(sx, sy, s);
+      }
+    }
+    if (swat) {
+      var now = performance.now();
+      if (now >= fly.hideUntil) {
+        fly.vx += (Math.random() - 0.5) * 0.5 * dt; fly.vy += (Math.random() - 0.5) * 0.5 * dt;
+        if (Math.random() < 0.012 * dt) { fly.vx = -fly.vx * 1.4; fly.vy = (Math.random() - 0.5) * 3; }
+        var sp = Math.hypot(fly.vx, fly.vy), max = 1.5 + Math.min(score, 10) * 0.2;
+        if (sp > max) { fly.vx *= max / sp; fly.vy *= max / sp; }
+        if (sp < 0.5) { fly.vx += (Math.random() - 0.5); fly.vy += (Math.random() - 0.5); }
+        fly.x += fly.vx * dt; fly.y += fly.vy * dt;
+        if (fly.x < 3) { fly.x = 3; fly.vx = Math.abs(fly.vx); }
+        if (fly.x > W - 5) { fly.x = W - 5; fly.vx = -Math.abs(fly.vx); }
+        if (fly.y < 3) { fly.y = 3; fly.vy = Math.abs(fly.vy); }
+        if (fly.y > H - 5) { fly.y = H - 5; fly.vy = -Math.abs(fly.vy); }
+        var fx = Math.round(fly.x), fy = Math.round(fly.y), up = Math.floor(ts / 50) % 2 === 0;
+        o.fillStyle = '#ffffff';
+        o.fillRect(fx - 1, up ? fy - 1 : fy + 1, 1, 1); o.fillRect(fx + 2, up ? fy - 1 : fy + 1, 1, 1);
+        o.fillStyle = '#14122e'; o.fillRect(fx, fy, 2, 2);
+        o.fillStyle = '#e0303a'; o.fillRect(fx + (fly.vx >= 0 ? 1 : 0), fy, 1, 1);
+        if (ac && !muted && ts - lastBuzz > 350) { lastBuzz = ts; tone(120 + Math.random() * 30, 0.12, 'sawtooth', 0.012); }
+      } else if (fly.hideUntil - now < 40) { spawnFly(); }
+      if (ring && now - ring.t < 140) { outline(ring.x - 4, ring.y - 4, 9); }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- starting scene ---------- */
+  function seed() {
+    disc(136, 18, 9, '#ffd93b');
+    for (var k = 0; k < 8; k++) {
+      var a = k * Math.PI / 4;
+      line(Math.round(136 + Math.cos(a) * 12), Math.round(18 + Math.sin(a) * 12), Math.round(136 + Math.cos(a) * 16), Math.round(18 + Math.sin(a) * 16), function (x, y) { px(x, y, '#f77622'); });
+    }
+    for (var x = 0; x < W; x++) {
+      var y = 80 + Math.round(3 * Math.sin(x / 9));
+      g.fillStyle = '#3bb54a'; g.fillRect(x, y, 1, H - y);
+      px(x, y, '#0b7a3e');
+    }
+    stampAt(g, STAMPS[6], 38, 78);
+    stampAt(g, STAMPS[2], 100, 74);
+    stampAt(g, STAMPS[4], 70, 38);
+    stampAt(g, STAMPS[1], 70, 42);
+    stampAt(g, STAMPS[5], 22, 20);
+    stampAt(g, STAMPS[7], 112, 46);
+  }
+  function start(data) {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    if (data && data.png) {
+      var im = new Image(); im.onload = function () { g.drawImage(im, 0, 0); }; im.src = data.png;
+      score = data.score || 0;
+    } else { seed(); }
+    var m = muted; muted = true; setTool('pencil'); setColor(4); muted = m;
+    setMsg('PENCIL - scribble scribble');
+    updateScore();
+    requestAnimationFrame(loop);
+  }
+  var hot = window.claude && window.claude.hot;
+  try { if (hot && hot.snapshot) hot.snapshot(function () { return { png: main.toDataURL(), score: score }; }); } catch (e) {}
+  if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+})();
+</script>
+
+</body></html>
