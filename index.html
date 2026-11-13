@@ -48,18 +48,18 @@
   @keyframes blink { 50% { opacity: 0; } }
 
   .grid {
-    max-width: 960px;
+    max-width: 840px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 24px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
   }
   .card {
     display: block;
     text-decoration: none;
     color: var(--ink);
     background: var(--card);
-    padding: 16px;
+    padding: 10px;
     /* pixel border via stacked box-shadows */
     box-shadow:
       0 -4px 0 0 var(--ink), 0 4px 0 0 var(--ink),
@@ -77,23 +77,25 @@
   }
   .card:active { transform: translate(2px, 2px); }
   .thumb {
-    height: 96px;
+    height: 64px;
     display: grid;
     place-items: center;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
     box-shadow: inset -4px -4px 0 rgba(0,0,0,.12), inset 4px 4px 0 rgba(255,255,255,.5);
   }
-  .thumb svg { width: 64px; height: 64px; shape-rendering: crispEdges; image-rendering: pixelated; }
-  .card h2 { font-size: 12px; margin: 0 0 10px; line-height: 1.5; }
-  .card p { font-size: 8px; line-height: 1.9; margin: 0 0 14px; }
+  .thumb svg { width: 40px; height: 40px; shape-rendering: crispEdges; image-rendering: pixelated; }
+  .card h2 { font-size: 9px; margin: 0 0 8px; line-height: 1.5; }
+  .card p { font-size: 6px; line-height: 1.9; margin: 0 0 10px; }
   .play {
     display: inline-block;
-    font-size: 9px;
-    padding: 8px 10px;
+    font-size: 7px;
+    padding: 6px 8px;
     background: var(--ink);
     color: #fff;
   }
   .card:hover .play { background: #ff6fae; }
+
+  @media (max-width: 700px) { .grid { grid-template-columns: repeat(2, 1fr); } }
 
   footer { text-align: center; font-size: 8px; margin-top: 40px; line-height: 2; }
   .sprites { display: flex; justify-content: center; gap: 12px; }
@@ -112,7 +114,7 @@
 
 <footer>
   <div class="sprites" id="footer-sprites"></div>
-  <p>MADE BY CLAUDE WITH 1 PROMPT EACH</p>
+  <p>MADE WITH LOVE &amp; PIXELS</p>
 </footer>
 
 <script>
@@ -128,15 +130,18 @@
    To remove one, delete its line.
    ============================================================ */
 const GAMES = [
-  { name: "Glimmer Heaven",       url: "https://poked.us/glimmer.html",                           desc: "roguelike bullet heaven", color: "lemon", icon: "gem" },
-  { name: "Overdue Invasion",     url: "https://poked.us/overdue.html", desc: "alien crashed in a video store",       color: "mint",  icon: "star" },
-  { name: "D*nah in Wonderland", url: "https://poked.us/dinah.html",                            desc: "like q*bert",        color: "lilac", icon: "ghost" },
-  { name: "Storm Warren",    url: "https://poked.us/storm.html",                               desc: "storms are scary for bunnies",     color: "pink",  icon: "heart" },
-  { name: "Glitch Hop",    url: "https://poked.us/glitch_hop.html",                            desc: "glitchy frogger-like game",             color: "sky",   icon: "mushroom" },
-  { name: "Down the Bat Hole", url: "https://poked.us/bat.html",                           desc: "flappy bat",       color: "peach", icon: "cat" },
-  { name: "Glitchfall",       url: "https://poked.us/glitchfall.html",                           desc: "glitchy puzzle game", color: "lemon", icon: "gem" },
-  { name: "Pet Rock Paperboy",     url: "https://poked.us/petrock.html", desc: "throw pet rocks!",       color: "mint",  icon: "star" },
-    { name: "Fluffzilla", url: "https://poked.us/fluffzilla.html",                            desc: "glitchy rampage style game",        color: "lilac", icon: "ghost" },
+  { name: "Overdue Invasion",     url: "overdue.html", desc: "alien crashed in a video store",       color: "mint",  icon: "star" },
+  { name: "Fluffzilla", url: "fluffzilla.html",                            desc: "glitchy rampage style game",        color: "lilac", icon: "ghost" },
+  { name: "Storm Warren",    url: "storm.html",                               desc: "storms are scary for bunnies",     color: "pink",  icon: "heart" },
+  { name: "D*nah in Wonderland", url: "dinah.html",                            desc: "like q*bert",        color: "lilac", icon: "ghost" },
+  { name: "Glitch Hop",    url: "glitch_hop.html",                            desc: "glitchy frogger-like game",             color: "sky",   icon: "mushroom" },
+  { name: "Down the Bat Hole", url: "bat.html",                           desc: "flappy bat",       color: "peach", icon: "cat" },
+  { name: "Glitchfall",       url: "glitchfall.html",                           desc: "glitchy puzzle game", color: "lemon", icon: "gem" },
+  { name: "Pet Rock Paperboy",     url: "petrock.html", desc: "throw pet rocks!",       color: "mint",  icon: "star" },
+  { name: "Glimmer Heaven",       url: "glimmer.html",                           desc: "roguelike bullet heaven", color: "lemon", icon: "flower" },
+  { name: "Moon Janitor",    url: "mj.html",                            desc: "sweep the moon & capture aliens",              color: "pink",  icon: "rocket" },
+  { name: "Glitch Horizon",    url: "gh.html",                           desc: "side-scroller with blackhole spell",                        color: "mint",  icon: "icecream" },
+  { name: "COMING SOON?",  url: "doodle.html",                    desc: "...",      color: "sky",   icon: "fish" },
 ];
 /* ============================================================ */
 
@@ -212,6 +217,100 @@ const SPRITES = {
     ".onnnnnno.",
     "..oooooo..",
   ],
+  crown: [
+    "o...oo...o",
+    "oy.oyyo.yo",
+    "oyooyyooyo",
+    "oyyyyyyyyo",
+    "oyyyrryyyo",
+    "oyyyyyyyyo",
+    "oooooooooo",
+  ],
+  rocket: [
+    "....oo....",
+    "...obbo...",
+    "..obwwbo..",
+    "..obwwbo..",
+    "..obbbbo..",
+    "..orrrro..",
+    ".oorrrroo.",
+    "oro.oo.oro",
+    "oo..nn..oo",
+    "....nn....",
+  ],
+  icecream: [
+    "...oppo...",
+    "..opppwpo.",
+    ".opppppppo",
+    ".oooooooo.",
+    "..onnnno..",
+    "..onnnno..",
+    "...onno...",
+    "...onno...",
+    "....oo....",
+  ],
+  flower: [
+    "...oppo...",
+    "..oppppo..",
+    "oppoyyoppo",
+    "oppoyyoppo",
+    "..oppppo..",
+    "...oggo...",
+    "..ogoogo..",
+    "....oo....",
+  ],
+  fish: [
+    "...ooo..o.",
+    ".oobbboooo",
+    "obwobbbbbo",
+    "obbbbbbbbo",
+    ".oobbboooo",
+    "...ooo..o.",
+  ],
+  apple: [
+    "....og....",
+    "..oogoo...",
+    ".orrrrrro.",
+    "orwrrrrrro",
+    "orwrrrrrro",
+    "orrrrrrrro",
+    ".orrrrrro.",
+    "..oo..oo..",
+  ],
+  robot: [
+    "....oo....",
+    "....or....",
+    ".oooooooo.",
+    ".owwwwwwo.",
+    ".owbwwbwo.",
+    ".owwwwwwo.",
+    ".owoooowo.",
+    ".oooooooo.",
+    ".obbyybbo.",
+    ".oo....oo.",
+  ],
+  alien: [
+    "..o....o..",
+    "...o..o...",
+    "..oggggo..",
+    ".oggggggo.",
+    "oggoggoggo",
+    "oggoggoggo",
+    ".oggggggo.",
+    "..oggggo..",
+    "...oggo...",
+    "....oo....",
+  ],
+  ufo: [
+    "...oooo...",
+    "..obwwbo..",
+    ".obwbbbbo.",
+    "oooooooooo",
+    "olylllylyo",
+    "oooooooooo",
+    "..o.oo.o..",
+    "..y.yy.y..",
+  ],
 };
 
 function spriteSVG(name) {
@@ -246,7 +345,7 @@ GAMES.forEach(g => {
 
 /* Decorative sprites */
 document.getElementById("header-sprites").innerHTML = ["heart", "star", "heart"].map(spriteSVG).join("");
-document.getElementById("footer-sprites").innerHTML = ["ghost", "mushroom", "cat"].map(spriteSVG).join("");
+document.getElementById("footer-sprites").innerHTML = ["robot", "ufo", "alien"].map(spriteSVG).join("");
 </script>
 </body>
 </html>
