@@ -99,7 +99,7 @@ input[type=range]{accent-color:var(--pink);width:min(180px,40vw)}
     <button class="btn" id="clearBtn" type="button">Reset pond</button>
   </div>
 
-  <p class="foot"><kbd>1</kbd>–<kbd>4</kbd> pick a pond · <kbd>↑</kbd> <kbd>↓</kbd> change scale · <kbd>Esc</kbd> reset pond · three keyboard rows are three octaves</p>
+  <p class="foot"><kbd>1</kbd>–<kbd>7</kbd> pick a pond · <kbd>↑</kbd> <kbd>↓</kbd> change scale · <kbd>Esc</kbd> reset pond · three keyboard rows are three octaves</p>
 </main>
 
 <script>
@@ -135,10 +135,16 @@ const JELLY_B = [".ooooo.", "ooooooo", "oeoooeo", "ooooooo", ".ooooo.", ".o.o.o.
 const HEART = [".o.o.", "ooooo", "ooooo", ".ooo.", "..o.."];
 
 /* ---------- background ---------- */
-const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
-(function () {
+const THEMES = [
+  { bands: ['#2b2372', '#271f69', '#231b60', '#1f1857', '#1b144e', '#171145', '#140f3c', '#120d36'], floor: '#2f2680', dot: '#3c3294', dash: '#3c3294', weeds: ['#2d8f86', '#3fb5a3'], tw: '#6a5fd0', bub: '#6f63d6' },
+  { bands: ['#4a2a6e', '#5b2f78', '#74387f', '#8f4683', '#aa5688', '#c46a8c', '#d98593', '#ec9f9a'], floor: '#e0b97e', dot: '#f0d29a', dash: '#a8578a', weeds: ['#9a5f7a', '#b9738a'], tw: '#f6c6a8', bub: '#f3b7b0' },
+  { bands: ['#07081a', '#080b1d', '#0a0e22', '#0b1226', '#0d152b', '#0e1930', '#101c34', '#122038'], floor: '#0f1a2e', dot: '#1c2f4f', dash: '#14243f', weeds: ['#1d5a55', '#2a7d6d'], tw: '#7ab8ff', bub: '#27456e' },
+  { bands: ['#1d5f8f', '#1f6d9c', '#2179a6', '#2386b0', '#2593b8', '#27a0be', '#2aadc4', '#2dbacb'], floor: '#2a8a8f', dot: '#5fd0c0', dash: '#5ab6d4', weeds: ['#1f9a7a', '#3fd0a0'], tw: '#bfeeff', bub: '#8fe0ee' }
+];
+function mkBG(th) {
+  const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
   const b = bg.getContext('2d');
-  const bands = ['#2b2372', '#271f69', '#231b60', '#1f1857', '#1b144e', '#171145', '#140f3c', '#120d36'];
+  const bands = th.bands;
   const bh = 20;
   bands.forEach((c, i) => { b.fillStyle = c; b.fillRect(0, i * bh, W, bh); });
   for (let k = 1; k < bands.length; k++) {
@@ -146,36 +152,39 @@ const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
     b.fillStyle = bands[k];
     for (let r = 0; r < 3; r++) for (let x = 0; x < W; x++) if ((x + r) % 2 === 0 && (r !== 0 || x % 4 === 0)) b.fillRect(x, yb - 3 + r, 1, 1);
   }
-  b.fillStyle = '#3c3294';
+  b.fillStyle = th.dot;
   for (let x = 0; x < W; x++) if (x % 2 === 0) b.fillRect(x, H - 9, 1, 1);
-  b.fillStyle = '#2f2680'; b.fillRect(0, H - 8, W, 8);
-  b.fillStyle = '#3c3294';
+  b.fillStyle = th.floor; b.fillRect(0, H - 8, W, 8);
+  b.fillStyle = th.dot;
   for (let x = 0; x < W; x += 3) b.fillRect(x, H - 8 + ((x * 7) % 5), 1, 1);
-  const weeds = ['#2d8f86', '#3fb5a3'];
+  const weeds = th.weeds;
   for (let i = 0; i < 16; i++) {
     const x = 6 + i * 15 + ((i * 37) % 7), h = 6 + ((i * 53) % 9);
     for (let y = 0; y < h; y++) { b.fillStyle = weeds[i % 2]; b.fillRect(x + ((y >> 1) % 2), H - 8 - y, 1, 1); }
   }
-})();
-const bubbles = Array.from({ length: 14 }, () => ({ x: R(0, W), y: R(0, H), s: R(0, 1) > .7 ? 2 : 1, v: R(5, 14), ph: R(0, 6) }));
+  return bg;
+}
+const BGS = THEMES.map(mkBG);
+const bubbles =Array.from({ length: 14 }, () => ({ x: R(0, W), y: R(0, H), s: R(0, 1) > .7 ? 2 : 1, v: R(5, 14), ph: R(0, 6) }));
 const twinkles = Array.from({ length: 9 }, () => ({ x: Math.floor(R(8, W - 8)), y: Math.floor(R(6, 90)), ph: R(0, 6) }));
 let T = 0;
 function drawBG(dt) {
-  ctx.drawImage(bg, 0, 0);
+  const th = THEMES[(mode && mode.theme) || 0];
+  ctx.drawImage(BGS[(mode && mode.theme) || 0], 0, 0);
   for (let k = 0; k < 5; k++) {
     const y = 20 + k * 26 + Math.sin(T * .8 + k) * 2;
     const off = (((T * 9 * (k % 2 ? 1 : -1)) % 30) + 30) % 30;
-    for (let x = -30 + off; x < W; x += 30) rect(x, y, 11, 1, C.wave2);
+    for (let x = -30 + off; x < W; x += 30) rect(x, y, 11, 1, th.dash);
   }
-  for (const t of twinkles) if (Math.sin(T * 2 + t.ph) > .5) { rect(t.x - 1, t.y, 3, 1, '#6a5fd0'); rect(t.x, t.y - 1, 1, 3, '#6a5fd0'); }
+  for (const t of twinkles) if (Math.sin(T * 2 + t.ph) > .5) { rect(t.x - 1, t.y, 3, 1, th.tw); rect(t.x, t.y - 1, 1, 3, th.tw); }
   for (const b of bubbles) {
     b.y -= b.v * dt; if (b.y < -3) { b.y = H + 3; b.x = R(0, W); }
-    rect(b.x + Math.sin(T + b.ph) * 2, b.y, b.s, b.s, '#6f63d6');
+    rect(b.x + Math.sin(T + b.ph) * 2, b.y, b.s, b.s, th.bub);
   }
 }
 
 /* ---------- audio ---------- */
-let ac = null, crush = null, master = null, muted = false, base = .35, gl = 0;
+let ac = null, crush = null, master = null, noiseBuf = null, muted = false, base = .35, gl = 0;
 const SCALES = [
   { n: 'Candy', s: [0, 2, 4, 7, 9] },
   { n: 'Moon', s: [0, 3, 5, 7, 10] },
@@ -206,6 +215,8 @@ function initAudio() {
   const N = 512, cur = new Float32Array(N), lv = 20;
   for (let i = 0; i < N; i++) { const x = i / (N - 1) * 2 - 1; cur[i] = Math.round(x * lv) / lv; }
   crush.curve = cur; crush.connect(bus);
+  noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+  const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   const wake = $('#wake'); if (wake) wake.hidden = true;
 }
 function tone(f, o) {
@@ -252,6 +263,53 @@ function sing(f, type) {
     }
   };
 }
+
+function noiseHit(dur, type, fq, vol, delay, q) {
+  if (!ac || muted || !noiseBuf) return;
+  const t = ac.currentTime + (delay || 0);
+  const s = ac.createBufferSource(); s.buffer = noiseBuf;
+  const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = fq; if (q) f.Q.value = q;
+  const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(crush);
+  s.start(t, Math.random() * .5); s.stop(t + dur + .02);
+}
+function drum(k, tune, again) {
+  if (!ac || muted) return;
+  tune = tune || 1;
+  const t = ac.currentTime;
+  if (k === 0) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(150 * tune, t); o.frequency.exponentialRampToValueAtTime(42 * tune, t + .16);
+    g.gain.setValueAtTime(.7, t); g.gain.exponentialRampToValueAtTime(.0001, t + .3);
+    o.connect(g); g.connect(crush); o.start(t); o.stop(t + .32);
+  } else if (k === 1) {
+    noiseHit(.17, 'bandpass', 1900 * tune, .5, 0, .8);
+    tone(190 * tune, { type: 'triangle', dur: .1, vol: .25, slide: .5 });
+  } else if (k === 2) {
+    noiseHit(Math.random() < .2 ? .14 : .05, 'highpass', 7000 * tune, .3);
+  } else {
+    noiseHit(.02, 'bandpass', 1300 * tune, .5, 0, 1.2);
+    noiseHit(.02, 'bandpass', 1300 * tune, .5, .013, 1.2);
+    noiseHit(.14, 'bandpass', 1300 * tune, .45, .026, 1.2);
+  }
+  bump(.2);
+  if (!again && Math.random() < base * .08) setTimeout(() => drum(k, tune * (Math.random() < .5 ? 1 : .7), true), 45);
+}
+function bell(f, vol, dur) {
+  if (!ac || muted) return;
+  const t = ac.currentTime; dur = dur || 1.4;
+  const o = ac.createOscillator(), m = ac.createOscillator(), mg = ac.createGain(), g = ac.createGain();
+  o.type = 'sine'; m.type = 'sine'; o.frequency.value = f; m.frequency.value = f * 3.5;
+  mg.gain.setValueAtTime(f * 1.6, t); mg.gain.exponentialRampToValueAtTime(1, t + dur * .6);
+  m.connect(mg); mg.connect(o.frequency);
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .004); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(crush);
+  o.start(t); m.start(t); o.stop(t + dur + .05); m.stop(t + dur + .05);
+  bump(.15);
+  if (Math.random() < base * .1) setTimeout(() => bell(f * 2, vol * .5, .5), 70);
+}
+function pop(f) { tone(f, { type: 'sine', dur: .09, vol: .28, slide: 2.2 }); noiseHit(.03, 'highpass', 5000, .2); bump(.25); }
+function blorp(f) { tone(f, { type: 'triangle', dur: .25, vol: .25, slide: .6 }); bump(.2); }
 
 /* ---------- particles ---------- */
 const parts = [];
@@ -541,6 +599,230 @@ const choir = {
   }
 };
 
+/* ---------- mode 5: Crabs (drum machine) ---------- */
+const CRAB_A = ["o.......o", "oo.ooo.oo", ".ooooooo.", "ooeoooeoo", ".ooooooo.", ".o.o.o.o."];
+const CRAB_B = ["oo.....oo", "o.ooooo.o", ".ooooooo.", "ooeoooeoo", ".ooooooo.", "o.o.o.o.o"];
+const ROWC = [C.pink, C.sun, C.mint, C.sky];
+const crabs = {
+  name: 'Crabs', theme: 1,
+  hint: 'Click or drag across the shells to wake crabs up. Each row is a drum: kick, snare, hat, clap. Click the sand to change the tempo. Keys <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> play the drums live, the other rows tune them higher or lower.',
+  g: [], sq: [], lv: [0, 0, 0, 0], step: 7, acc: 0, bpm: 118, paint: true, lastCell: null, pid: null, tempoId: null,
+  enter() { if (!this.g.length) this.reset(); },
+  reset() {
+    this.g = [[1, 0, 0, 1, 1, 0, 0, 0], [0, 0, 1, 0, 0, 0, 1, 0], [1, 0, 1, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 1, 0, 1]];
+    this.sq = [0, 1, 2, 3].map(() => new Array(8).fill(0));
+    this.step = 7; this.acc = 0; this.bpm = 118;
+  },
+  cell(x, y) {
+    const c = Math.floor((x - 8) / 28), r = Math.floor((y - 9) / 31);
+    return (c >= 0 && c < 8 && r >= 0 && r < 4 && y < 136) ? { c, r } : null;
+  },
+  setTempo(x) { this.bpm = Math.round(70 + clamp(x / W, 0, 1) * 110); },
+  setCell(k, on) {
+    this.g[k.r][k.c] = on ? 1 : 0;
+    if (on) { drum(k.r, 1); this.sq[k.r][k.c] = 1; spark(22 + k.c * 28, 24 + k.r * 31, ROWC[k.r], 4); }
+  },
+  down(id, x, y) {
+    if (y >= 136) { this.tempoId = id; this.setTempo(x); return; }
+    const k = this.cell(x, y); if (!k) return;
+    this.paint = !this.g[k.r][k.c]; this.pid = id; this.lastCell = k.r * 8 + k.c; this.setCell(k, this.paint);
+  },
+  move(id, x, y) {
+    if (id === this.tempoId) { this.setTempo(x); return; }
+    if (id !== this.pid) return;
+    const k = this.cell(x, y); if (!k) return;
+    const key = k.r * 8 + k.c; if (key === this.lastCell) return;
+    this.lastCell = key; this.setCell(k, this.paint);
+  },
+  up(id) { if (id === this.tempoId) this.tempoId = null; if (id === this.pid) { this.pid = null; this.lastCell = null; } },
+  key(col, row, down) {
+    if (!down) return;
+    const r = col % 4; drum(r, Math.pow(2, row * .3)); this.lv[r] = 1;
+    spark(R(20, W - 20), 24 + r * 31, ROWC[r], 5);
+  },
+  update(dt) {
+    const sd = 60 / this.bpm / 2;
+    this.acc += dt;
+    while (this.acc >= sd) {
+      this.acc -= sd; this.step = (this.step + 1) % 8;
+      for (let r = 0; r < 4; r++) if (this.g[r][this.step]) {
+        drum(r, 1); this.sq[r][this.step] = 1; spark(22 + this.step * 28, 24 + r * 31, ROWC[r], 3);
+      }
+    }
+    for (const row of this.sq) for (let c = 0; c < 8; c++) row[c] = Math.max(0, row[c] - dt * 4);
+    for (let r = 0; r < 4; r++) this.lv[r] = Math.max(0, this.lv[r] - dt * 4);
+  },
+  draw() {
+    rect(0, 138, W, 22, '#e0b97e');
+    for (let x = 0; x < W; x += 2) rect(x, 138 + (x % 4 ? 0 : 1), 1, 1, '#f0d29a');
+    for (let x = 5; x < W; x += 17) rect(x, 146 + (x * 7) % 9, 2, 1, '#c79c63');
+    const px = 8 + (this.step + this.acc / (60 / this.bpm / 2)) * 28;
+    rect(px - 7, 135, 14, 2, C.cream); rect(px - 5, 137, 10, 1, '#b8e8ff');
+    const tx = (this.bpm - 70) / 110 * W;
+    rect(tx - 3, 143, 7, 1, C.ink); rect(tx - 2, 144, 5, 1, C.ink); rect(tx - 1, 145, 3, 1, C.ink); rect(tx, 146, 1, 1, C.ink);
+    ctx.globalAlpha = .18; rect(8 + this.step * 28, 10, 28, 124, C.cream); ctx.globalAlpha = 1;
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 8; c++) {
+      const cx = 22 + c * 28, cy = 24 + r * 31, on = this.g[r][c], hit = this.sq[r][c] > .3 || this.lv[r] > .3;
+      rect(cx - 11, cy - 9, 22, 18, on ? '#3b2160' : '#4d2a6e');
+      const bc = on ? ROWC[r] : '#6b3d86';
+      rect(cx - 11, cy - 9, 22, 1, bc); rect(cx - 11, cy + 8, 22, 1, bc); rect(cx - 11, cy - 9, 1, 18, bc); rect(cx + 10, cy - 9, 1, 18, bc);
+      if (on) spr(hit ? CRAB_B : CRAB_A, cx - 9, cy - 6 + (hit ? -1 : 0), { o: hit ? C.cream : ROWC[r], e: C.ink }, false, 2);
+      else rect(cx - 1, cy - 1, 2, 2, '#8a52a6');
+    }
+  }
+};
+
+/* ---------- mode 6: Glim (fireflies and bells) ---------- */
+const yToDeg = y => Math.round(DLO + (H - 12 - y) / (H - 24) * (DHI - DLO));
+const degToY = d => clamp(H - 12 - (d - DLO) / (DHI - DLO) * (H - 24), 8, H - 16);
+const glim = {
+  name: 'Glim', theme: 2,
+  hint: 'Hold and drag to call the fireflies. When two of them meet they ring a glass bell, higher up the pond rings higher. Keys release a new firefly and ring its note.',
+  ff: [], ptr: new Map(), links: [], gcd: 0,
+  enter() { if (!this.ff.length) this.reset(); },
+  reset() { this.ff = []; this.links = []; for (let i = 0; i < 12; i++) this.ff.push(this.mk(R(20, W - 20), R(20, H - 30), false, i)); },
+  mk(x, y, wisp, i) { return { x, y, vx: R(-20, 20), vy: R(-20, 20), ph: R(0, 6), c: [C.sun, C.mint, C.pink, C.sky][i % 4], cd: R(0, .6), fl: wisp ? 1 : 0, life: 9, wisp }; },
+  down(id, x, y) { this.ptr.set(id, { x, y }); },
+  move(id, x, y) { const p = this.ptr.get(id); if (p) { p.x = x; p.y = y; } },
+  up(id) { this.ptr.delete(id); },
+  key(col, row, down) {
+    if (!down) return;
+    const deg = col + Ls() * row, x = 14 + col / 9 * (W - 28), y = degToY(deg);
+    if (this.ff.length >= 22) { const i = this.ff.findIndex(f => f.wisp); if (i >= 0) this.ff.splice(i, 1); }
+    this.ff.push(this.mk(x, y, true, col));
+    bell(freq(deg), .22);
+    spark(x, y, C.cream, 5);
+  },
+  update(dt) {
+    const P = [...this.ptr.values()];
+    this.gcd -= dt;
+    for (let i = this.ff.length - 1; i >= 0; i--) {
+      const f = this.ff[i];
+      f.cd -= dt; f.fl = Math.max(0, f.fl - dt * 2.5);
+      f.vx += R(-1, 1) * 60 * dt; f.vy += R(-1, 1) * 60 * dt;
+      for (const p of P) {
+        const dx = p.x - f.x, dy = p.y - f.y, d = Math.hypot(dx, dy) || 1;
+        if (d < 90) { const k = 1 - d / 90; f.vx += (dx / d * 140 - dy / d * 60) * k * dt; f.vy += (dy / d * 140 + dx / d * 60) * k * dt; }
+      }
+      f.vx *= 1 - 1.2 * dt; f.vy *= 1 - 1.2 * dt;
+      const sp = Math.hypot(f.vx, f.vy); if (sp > 55) { f.vx *= 55 / sp; f.vy *= 55 / sp; }
+      f.x += f.vx * dt; f.y += f.vy * dt;
+      if (f.x < 6) { f.x = 6; f.vx = Math.abs(f.vx); } else if (f.x > W - 6) { f.x = W - 6; f.vx = -Math.abs(f.vx); }
+      if (f.y < 6) { f.y = 6; f.vy = Math.abs(f.vy); } else if (f.y > H - 14) { f.y = H - 14; f.vy = -Math.abs(f.vy); }
+      if (f.wisp) { f.life -= dt; if (f.life <= 0) this.ff.splice(i, 1); }
+    }
+    for (let i = 0; i < this.ff.length; i++) for (let j = i + 1; j < this.ff.length; j++) {
+      const a = this.ff[i], b = this.ff[j];
+      if (a.cd > 0 || b.cd > 0 || this.gcd > 0) continue;
+      if (Math.hypot(a.x - b.x, a.y - b.y) < 14) {
+        const my = (a.y + b.y) / 2;
+        bell(freq(yToDeg(my)), .2);
+        a.cd = b.cd = .9; a.fl = b.fl = 1; this.gcd = .06;
+        this.links.push({ a, b, l: .3 });
+        spark((a.x + b.x) / 2, my, C.cream, 3);
+      }
+    }
+    for (let i = this.links.length - 1; i >= 0; i--) { this.links[i].l -= dt; if (this.links[i].l <= 0) this.links.splice(i, 1); }
+  },
+  draw() {
+    for (const p of this.ptr.values()) ring(p.x, p.y, 10 + Math.sin(T * 8) * 2, '#3a5f9a');
+    for (const k of this.links) {
+      const dx = k.b.x - k.a.x, dy = k.b.y - k.a.y, st = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 2));
+      for (let s = 0; s <= st; s += 2) rect(k.a.x + dx * s / st, k.a.y + dy * s / st, 1, 1, C.cream);
+    }
+    for (const f of this.ff) {
+      if (f.wisp && f.life < 2 && Math.floor(f.life * 10) % 2) continue;
+      const pulse = .5 + .5 * Math.sin(T * 3 + f.ph);
+      ctx.globalAlpha = .25 + .35 * pulse; rect(f.x - 3, f.y, 7, 1, f.c); rect(f.x, f.y - 3, 1, 7, f.c); ctx.globalAlpha = 1;
+      if (f.fl > .3) { rect(f.x - 5, f.y, 11, 1, f.c); rect(f.x, f.y - 5, 1, 11, f.c); }
+      rect(f.x - 1, f.y - 1, 3, 3, f.c); rect(f.x, f.y, 1, 1, C.cream);
+    }
+  }
+};
+
+/* ---------- mode 7: Blub (bubbles) ---------- */
+const blub = {
+  name: 'Blub', theme: 3, n: 0, demo: .3,
+  hint: 'Hold the water to blow a bubble: the bigger it gets, the lower it sings. Let go and it floats up and pops at the top. Tap a bubble to pop it, and bubbles that bump merge into one big blorp. Hold keys to blow bubbles from the bottom.',
+  bs: [], inf: new Map(),
+  enter() { if (!this.bs.length) this.seed(); },
+  leave() { this.stopAll(); },
+  seed() { this.bs = []; for (let i = 0; i < 5; i++) this.bs.push(this.mk(R(20, W - 20), R(30, H - 30), R(5, 16), 'rise')); },
+  reset() { this.stopAll(); this.seed(); },
+  stopAll() { for (const b of this.bs) if (b.v) { b.v.stop(); b.v = null; } this.inf.clear(); },
+  mk(x, y, r, st) { return { x, y, r, st, ph: R(0, 6), c: PAL[this.n++ % PAL.length], v: null }; },
+  r2d(r) { return clamp(Math.round(12 - (r - 3) / 23 * 14), -2, 12); },
+  kill(b, sparks) {
+    if (b.v) { b.v.stop(); b.v = null; }
+    const i = this.bs.indexOf(b); if (i >= 0) this.bs.splice(i, 1);
+    if (sparks) spark(b.x, b.y, b.c, 8);
+    for (const [k, v] of this.inf) if (v === b) this.inf.delete(k);
+  },
+  popB(b) { pop(freq(this.r2d(b.r))); this.kill(b, true); },
+  blow(holder, x, y) {
+    if (this.bs.length >= 24) { const o = this.bs.find(q => q.st === 'rise'); if (o) this.kill(o, true); }
+    const b = this.mk(x, y, 3, 'inflate');
+    b.v = sing(freq(this.r2d(3)), 'sine');
+    this.bs.push(b); this.inf.set(holder, b);
+  },
+  letGo(holder) {
+    const b = this.inf.get(holder); if (!b) return;
+    this.inf.delete(holder);
+    if (b.v) { b.v.stop(); b.v = null; }
+    b.st = 'rise';
+  },
+  down(id, x, y) {
+    for (let i = this.bs.length - 1; i >= 0; i--) {
+      const b = this.bs[i];
+      if (b.st === 'rise' && Math.hypot(b.x - x, b.y - y) <= b.r + 2) { this.popB(b); return; }
+    }
+    this.blow(id, x, y);
+  },
+  move(id, x, y) { const b = this.inf.get(id); if (b) { b.x = x; b.y = y; } },
+  up(id) { this.letGo(id); },
+  key(col, row, down) {
+    const h = 'k' + col + ',' + row;
+    if (down) this.blow(h, 14 + col / 9 * (W - 28), row > 0 ? 70 : row < 0 ? 138 : 110);
+    else this.letGo(h);
+  },
+  update(dt) {
+    if (!touched) { this.demo -= dt; if (this.demo <= 0) { this.demo = 1.3; this.bs.push(this.mk(R(16, W - 16), H - 16, R(4, 18), 'rise')); } }
+    for (let i = this.bs.length - 1; i >= 0; i--) {
+      const b = this.bs[i]; if (!b) continue;
+      if (b.st === 'inflate') {
+        b.r = Math.min(26, b.r + 13 * dt);
+        if (b.v) b.v.setF(freq(this.r2d(b.r)));
+        if (b.r >= 26) { this.popB(b); }
+      } else {
+        const vy = Math.max(14, 48 - b.r * 1.3);
+        b.y -= vy * dt; b.x = clamp(b.x + Math.sin(T * 3 + b.ph) * 10 * dt, b.r, W - b.r);
+        if (b.y <= b.r + 3) this.popB(b);
+      }
+    }
+    outer: for (let i = 0; i < this.bs.length; i++) for (let j = i + 1; j < this.bs.length; j++) {
+      const a = this.bs[i], b = this.bs[j];
+      if (a.st !== 'rise' || b.st !== 'rise') continue;
+      if (Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r - 3) {
+        a.r = Math.sqrt(a.r * a.r + b.r * b.r); a.x = (a.x + b.x) / 2; a.y = (a.y + b.y) / 2;
+        this.kill(b, false); spark(a.x, a.y, a.c, 6);
+        if (a.r >= 26) this.popB(a); else blorp(freq(this.r2d(a.r)));
+        break outer;
+      }
+    }
+  },
+  draw() {
+    for (const b of this.bs) {
+      const r = Math.round(b.r + (b.st === 'inflate' ? Math.sin(T * 20) * .8 : 0));
+      ctx.globalAlpha = .18;
+      for (let dy = -r; dy <= r; dy++) { const w = Math.floor(Math.sqrt(r * r - dy * dy)); rect(b.x - w, b.y + dy, 2 * w + 1, 1, b.c); }
+      ctx.globalAlpha = 1;
+      ring(b.x, b.y, r, b.c);
+      rect(b.x - r * .55, b.y - r * .55, 2, 2, C.cream);
+      if (r > 8) rect(b.x - r * .55 + 2, b.y - r * .55 + 2, 1, 1, C.cream);
+    }
+  }
+};
+
 /* ---------- glitch post effect ---------- */
 let gTimer = 3;
 function randomGlitch(dt) {
@@ -572,7 +854,7 @@ function postFX() {
 }
 
 /* ---------- modes, input, ui ---------- */
-const modes = [boing, squig, rip, choir];
+const modes = [boing, squig, rip, choir, crabs, glim, blub];
 let mode = null;
 const tabsEl = $('#tabs'), hintEl = $('#hint');
 modes.forEach((m, i) => {
@@ -615,7 +897,7 @@ function keyInfo(k) { for (const [s, r] of ROWS) { const c = s.indexOf(k); if (c
 window.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  if (k >= '1' && k <= '4') { initAudio(); touched = true; setMode(+k - 1); e.preventDefault(); return; }
+  if (k >= '1' && k <= '7') { initAudio(); touched = true; setMode(+k - 1); e.preventDefault(); return; }
   if (k === 'ArrowUp' || k === 'ArrowDown') { initAudio(); cycleScale(k === 'ArrowUp' ? 1 : -1); e.preventDefault(); return; }
   if (k === 'Escape') { mode.reset(); bump(.8); return; }
   const info = keyInfo(k);
