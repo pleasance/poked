@@ -85,6 +85,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-acti
 .rank{font-size:clamp(30px,13cqw,120px);line-height:1;color:var(--gold);text-shadow:.06em .06em 0 var(--magenta)}
 .final{font-size:clamp(12px,4cqw,38px);color:var(--paper)}
 .tag{color:var(--cyan)}
+.padstat{font-size:9px;color:var(--cyan);letter-spacing:.08em}
 .help{width:100%;margin:0;font-size:9px;line-height:1.9;color:var(--dim)}
 @media (prefers-reduced-motion:reduce){
   .glitch-title,#time.low{animation:none}
@@ -94,6 +95,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-acti
 <main class="wrap">
   <header class="bar">
     <h1>STATIC DREAMER</h1>
+    <span class="padstat" id="padstat" hidden>Controller on</span>
     <button class="btn ghost" id="mute" type="button">Sound on</button>
   </header>
 
@@ -111,7 +113,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-acti
     <div class="overlay" id="title">
       <h2 class="glitch-title">STATIC<br>DREAMER</h2>
       <p>Fly through the broken night and grab every diamond before the <b>3:00</b> clock runs out.</p>
-      <p><b>ARROWS / WASD</b> steer &nbsp; <b>SPACE</b> dash<br>Touch: hold to steer toward your finger<br>Fly a closed <b>loop</b> around diamonds to grab them all at once</p>
+      <p><b>ARROWS / WASD</b> steer &nbsp; <b>SPACE</b> dash<br>Controller: <b>STICK</b> or <b>D-PAD</b> steer, <b>A</b> or a trigger dashes, <b>START</b> begins<br>Touch: hold to steer toward your finger<br>Fly a closed <b>loop</b> around diamonds to grab them all at once</p>
       <button class="btn" id="start" type="button">Start dream</button>
       <p id="bestline"></p>
     </div>
@@ -126,7 +128,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-acti
     </div>
   </div>
 
-  <p class="help">ARROWS / WASD steer. SPACE or SHIFT dash (dash diamonds pay 1.5x). Chains of diamonds raise your multiplier up to x8. Loops pay 2.5x per diamond. M mutes.</p>
+  <p class="help">ARROWS / WASD steer. SPACE or SHIFT dash (dash diamonds pay 1.5x). Chains of diamonds raise your multiplier up to x8. Loops pay 2.5x per diamond. M mutes. Controller: stick or D-pad steers, A or a trigger dashes, Start begins, Back mutes (press any button once so the browser sees it).</p>
 </main>
 
 <script>
@@ -160,7 +162,8 @@ const G = {
   chips: 0, loops: 0, best: 0, overAt: 0,
   p: { x: 200, y: 150, ang: 0, speed: 92, dash: false, meter: 100, lock: false },
   camX: 200, camY: 60, trail: [], trailT: 0, clusters: [], parts: [], pops: [], queue: [], rings: [],
-  gl: 0, nextBurst: 2, flash: 0, ptr: { on: false, x: 0, y: 0 }, keys: {}, dashTouch: false
+  gl: 0, nextBurst: 2, flash: 0, ptr: { on: false, x: 0, y: 0 }, keys: {}, dashTouch: false,
+  pad: { on: false, ix: 0, iy: 0, dash: false }
 };
 try { G.best = +localStorage.getItem('static-dreamer-best') || 0; } catch (_) {}
 
@@ -190,9 +193,15 @@ function makeClusters() {
 makeClusters();
 
 /* ---------- decor ---------- */
-const STARS = Array.from({ length: 70 }, () => ({ x: rnd(0, LW), y: rnd(0, 150), k: rnd(0.08, 0.35), tw: Math.random(), big: Math.random() < 0.2 }));
-const CLOUDS = Array.from({ length: 7 }, (_, i) => ({ x: i * 95 + rnd(0, 40), y: rnd(26, 112), w: rnd(34, 74) }));
-const BANDS = ['#0a0220', '#10043a', '#190652', '#25096d', '#340e86', '#4a1397', '#661a9f', '#8a22a0', '#b02f9a'];
+const SPARKC = ['#ffffff', '#fff36b', '#ff9ad5', '#9dffb0', '#9df0ff'];
+const STARS = Array.from({ length: 56 }, () => ({ x: rnd(0, LW), y: rnd(0, 150), k: rnd(0.1, 0.4), tw: Math.random(), big: Math.random() < 0.2, c: SPARKC[(Math.random() * SPARKC.length) | 0] }));
+const CLOUDS = Array.from({ length: 7 }, (_, i) => ({ x: i * 95 + rnd(0, 40), y: rnd(22, 100), w: rnd(34, 74) }));
+const BIRDS = Array.from({ length: 5 }, (_, i) => ({ x: i * 70 + rnd(0, 30), y: rnd(20, 90), v: rnd(6, 14), ph: Math.random() * TAU }));
+const ISLANDS = [{ x: 60, y: 60, w: 44 }, { x: 210, y: 160, w: 56 }, { x: 340, y: 40, w: 38 }, { x: 470, y: 120, w: 50 }, { x: 590, y: 200, w: 42 }];
+const FLOWERC = ['#ff3fb4', '#ffe14d', '#ffffff', '#ff5a3c', '#4df3ff'];
+const RAINBOW = ['#ff3b5c', '#ff9a2e', '#ffe14d', '#4de37a', '#3fb8ff', '#a56bff'];
+/* vivid daytime sky, deep blue at the top to pale gold at the horizon */
+const BANDS = ['#2a1fa8', '#2f3fd6', '#2e68ea', '#2f93f0', '#37bdf0', '#63dcea', '#9ceeda', '#d4f7c0', '#fff3a8'];
 
 /* ---------- audio ---------- */
 let AC = null, master = null, noiseBuf = null, muted = false, seqTimer = null, nextT = 0, seqStep = 0;
@@ -319,7 +328,7 @@ function formLoop(i, hit) {
   G.rings.push({ x: cx, y: cy, life: 0.6, max: 0.6, r: Math.sqrt(area / Math.PI) + 6 });
   if (!found.length) return;
   found.forEach(([it, c], k) => { takeDiamond(it, c); G.queue.push({ it, at: G.t + k * 0.045 }); });
-  G.loops++; G.flash = 0.7; G.gl = 0.95; sfxLoop();
+  G.loops++; G.flash = 0.7; G.gl = 0.95; sfxLoop(); rumble(220, 0.6, 0.9);
   pop(cx, cy - 6, found.length >= 10 ? 'PARALOOP!' : 'LOOP x' + found.length, found.length >= 10 ? '#ff3fb4' : '#ffe14d');
   if (found.length >= 10) { const b = 100 * mult(); G.score += b; pop(cx, cy + 6, '+' + b, '#ffffff'); }
 }
@@ -341,6 +350,7 @@ function update(dt) {
     const k = G.keys;
     ix = (k.ArrowRight ? 1 : 0) - (k.ArrowLeft ? 1 : 0);
     iy = (k.ArrowDown ? 1 : 0) - (k.ArrowUp ? 1 : 0);
+    if (G.pad.ix || G.pad.iy) { ix = G.pad.ix; iy = G.pad.iy; }
     if (G.ptr.on) {
       const vx = G.ptr.x - (LW / 2 + p.x - G.camX), vy = G.ptr.y - (p.y - G.camY);
       if (Math.hypot(vx, vy) > 6) { ix = vx; iy = vy; }
@@ -350,10 +360,10 @@ function update(dt) {
   }
 
   /* dash */
-  const wantDash = G.mode === 'play' && (G.keys.Space || G.dashTouch);
+  const wantDash = G.mode === 'play' && (G.keys.Space || G.dashTouch || G.pad.dash);
   if (G.mode === 'play') {
     if (wantDash && !p.lock && p.meter > 0) {
-      if (!p.dash) { p.dash = true; sfxDash(); G.gl = Math.max(G.gl, 0.3); }
+      if (!p.dash) { p.dash = true; sfxDash(); rumble(120, 0.3, 0.1); G.gl = Math.max(G.gl, 0.3); }
       p.meter = Math.max(0, p.meter - dt * 42);
       if (p.meter <= 0) { p.lock = true; p.dash = false; }
     } else {
@@ -444,7 +454,7 @@ function startGame() {
 function endGame() {
   G.queue.forEach(q => award(q.it, true)); G.queue = [];
   G.mode = 'over'; G.overAt = G.t + 1.2; G.p.dash = false; G.ptr.on = false;
-  stopMusic(); sfxEnd();
+  stopMusic(); sfxEnd(); rumble(500, 0.8, 0.8);
   const s = G.score;
   const rank = s >= 32000 ? 'S' : s >= 16000 ? 'A' : s >= 6000 ? 'B' : 'C';
   const isBest = s > G.best;
@@ -469,42 +479,133 @@ function drawBackground(camX, camY) {
       for (let x = 0; x < LW; x += 8) L.fillRect(x, y0 - 2, 2, 1);
     }
   }
-  /* stars */
+  /* sun with a soft halo */
+  const mx = Math.floor((((300 - camX * 0.06) % 700) + 700) % 700 - 150), my = Math.floor(66 - camY * 0.2);
+  L.globalAlpha = 0.22; L.fillStyle = '#fff6a8';
+  for (let yy = -30; yy <= 30; yy++) { const w = Math.floor(Math.sqrt(900 - yy * yy)); L.fillRect(mx - w, my + yy, w * 2, 1); }
+  L.globalAlpha = 1;
+  L.fillStyle = '#ffb02e';
+  for (let yy = -19; yy <= 19; yy++) { const w = Math.floor(Math.sqrt(361 - yy * yy)); L.fillRect(mx - w, my + yy, w * 2, 1); }
+  L.fillStyle = '#fff36b';
+  for (let yy = -16; yy <= 16; yy++) { const w = Math.floor(Math.sqrt(256 - yy * yy)); L.fillRect(mx - w, my + yy, w * 2, 1); }
+  /* rainbow */
+  const rx = Math.floor((((220 - camX * 0.1) % 700) + 700) % 700 - 150), ry = Math.floor(150 - camY * 0.25);
+  L.globalAlpha = 0.6;
+  for (let k = 0; k < RAINBOW.length; k++) {
+    const rr = 80 - k * 3; L.fillStyle = RAINBOW[k];
+    for (let x = -rr; x <= rr; x += 2) L.fillRect(rx + x, Math.floor(ry - Math.sqrt(rr * rr - x * x)), 2, 3);
+  }
+  L.globalAlpha = 1;
+  /* sparkles in the air */
   for (const s of STARS) {
     const sx = Math.floor((((s.x - camX * s.k) % LW) + LW) % LW), sy = Math.floor(s.y - camY * 0.1);
     if ((((G.t * 3 + s.tw * 10) | 0) % 7) === 0) continue;
-    L.fillStyle = s.big ? '#ffffff' : '#c9b8ff';
+    L.fillStyle = s.c;
     L.fillRect(sx, sy, 1, 1);
     if (s.big) { L.fillRect(sx - 1, sy, 3, 1); L.fillRect(sx, sy - 1, 1, 3); }
   }
-  /* moon */
-  const mx = Math.floor((((420 - camX * 0.08) % 700) + 700) % 700 - 150), my = Math.floor(44 - camY * 0.2), r = 20;
-  L.fillStyle = '#ffe9fb';
-  for (let yy = -r; yy <= r; yy++) { const w = Math.floor(Math.sqrt(r * r - yy * yy)); L.fillRect(mx - w, my + yy, w * 2, 1); }
-  L.fillStyle = '#e3b9ef';
-  L.fillRect(mx - 9, my - 7, 5, 4); L.fillRect(mx + 3, my + 4, 6, 4); L.fillRect(mx - 4, my + 9, 3, 3);
   /* clouds */
   for (const c of CLOUDS) {
     const cx = Math.floor((((c.x - camX * 0.35) % 640) + 640) % 640 - 80), cy = Math.floor(c.y - camY * 0.3), w = Math.floor(c.w);
-    L.fillStyle = '#4a1c8c'; L.fillRect(cx + 4, cy, w - 8, 2);
-    L.fillStyle = '#2a0f66'; L.fillRect(cx, cy + 2, w, 4); L.fillRect(cx + 6, cy + 6, w - 12, 3);
+    L.fillStyle = '#ffffff'; L.fillRect(cx + 4, cy, w - 8, 2);
+    L.fillStyle = '#f6e8ff'; L.fillRect(cx, cy + 2, w, 3);
+    L.fillStyle = '#ffb4e6'; L.fillRect(cx + 2, cy + 5, w - 4, 2); L.fillRect(cx + 8, cy + 7, w - 16, 1);
   }
-  /* mountains */
-  const base = LH + (120 - camY) * 0.55;
-  for (let layer = 0; layer < 2; layer++) {
-    const k = layer ? 0.75 : 0.5;
-    for (let sx = 0; sx < LW; sx += 2) {
-      const wx = sx + camX * k;
-      const h = (layer ? 20 : 30) + Math.sin(wx * 0.03 + layer) * 10 + Math.sin(wx * 0.071 + 1) * 6;
-      const y = Math.floor(base - h - layer * 6);
-      L.fillStyle = layer ? '#12052e' : '#1c0847';
-      L.fillRect(sx, y, 2, LH - y + 1);
-      if (!layer) { L.fillStyle = '#5b1f9e'; L.fillRect(sx, y, 2, 1); }
-    }
+  /* birds */
+  for (const b of BIRDS) {
+    const bx = Math.floor((((b.x + G.t * b.v - camX * 0.3) % LW) + LW) % LW), by = Math.floor(b.y + Math.sin(G.t * 2 + b.ph) * 3 - camY * 0.2);
+    L.fillStyle = '#2a0a5e';
+    if (((G.t * 6 + b.ph) | 0) % 2) { L.fillRect(bx - 2, by, 2, 1); L.fillRect(bx, by + 1, 1, 1); L.fillRect(bx + 1, by, 2, 1); }
+    else { L.fillRect(bx - 2, by + 1, 2, 1); L.fillRect(bx, by, 1, 1); L.fillRect(bx + 1, by + 1, 2, 1); }
+  }
+  /* far mountains with snowcaps */
+  const baseFar = LH + (120 - camY) * 0.3 + 14;
+  for (let sx = 0; sx < LW; sx += 2) {
+    const wx = sx + camX * 0.3;
+    const h = 46 + Math.sin(wx * 0.021) * 18 + Math.sin(wx * 0.05 + 2) * 9;
+    const y = Math.floor(baseFar - h);
+    L.fillStyle = '#5a5fe0'; L.fillRect(sx, y, 2, LH - y + 1);
+    L.fillStyle = h > 58 ? '#ffffff' : '#9aa8ff'; L.fillRect(sx, y, 2, h > 58 ? 3 : 1);
+  }
+  /* floating islands */
+  for (let i = 0; i < ISLANDS.length; i++) {
+    const s = ISLANDS[i];
+    const ix = Math.floor((((s.x - camX * 0.8) % 640) + 640) % 640 - 100), iy = Math.floor(s.y - camY * 0.7);
+    if (ix > LW + 20 || iy < -30 || iy > LH + 4) continue;
+    drawIsland(ix, iy, s.w, i);
+  }
+  /* mid hills with trees */
+  const baseMid = LH + (120 - camY) * 0.4 + 12;
+  for (let sx = 0; sx < LW; sx += 2) {
+    const wx = sx + camX * 0.5, y = Math.floor(baseMid - hillH(wx, 0));
+    L.fillStyle = '#2fc468'; L.fillRect(sx, y, 2, LH - y + 1);
+    L.fillStyle = '#8dff7a'; L.fillRect(sx, y, 2, 1);
+  }
+  const i0 = Math.floor(camX * 0.5 / 34) - 1;
+  for (let idx = i0; idx < i0 + Math.ceil(LW / 34) + 3; idx++) {
+    const wx = idx * 34 + (((idx * 37) % 17) + 17) % 17;
+    const sx = Math.round(wx - camX * 0.5), gy = Math.floor(baseMid - hillH(wx, 0)) + 2;
+    const type = ((idx % 3) + 3) % 3;
+    if (type === 1) drawPine(sx, gy); else drawRoundTree(sx, gy, type === 2 ? '#ff7ac8' : '#1c9f55', type === 2 ? '#ffc2ea' : '#6bf08a');
+  }
+  /* near hills with flowers */
+  const baseNear = LH + (120 - camY) * 0.55 + 16;
+  for (let sx = 0; sx < LW; sx += 2) {
+    const wx = sx + camX * 0.78, y = Math.floor(baseNear - hillH(wx, 1));
+    L.fillStyle = '#169a52'; L.fillRect(sx, y, 2, LH - y + 1);
+    L.fillStyle = '#5be37d'; L.fillRect(sx, y, 2, 2);
+  }
+  const f0 = Math.floor(camX * 0.78 / 7) - 1;
+  for (let idx = f0; idx < f0 + Math.ceil(LW / 7) + 3; idx++) {
+    if ((((idx * 53) % 5) + 5) % 5 > 1) continue;
+    const wx = idx * 7, sx = Math.round(wx - camX * 0.78), y = Math.floor(baseNear - hillH(wx, 1));
+    L.fillStyle = '#0f7a47'; L.fillRect(sx, y, 1, 3);
+    L.fillStyle = FLOWERC[((idx % 5) + 5) % 5]; L.fillRect(sx - 1, y - 2, 3, 2);
+    L.fillStyle = '#fff36b'; L.fillRect(sx, y - 1, 1, 1);
+  }
+}
+function hillH(wx, layer) {
+  return layer ? 16 + Math.sin(wx * 0.05 + 3) * 7 + Math.sin(wx * 0.11) * 3
+               : 26 + Math.sin(wx * 0.035) * 10 + Math.sin(wx * 0.08 + 1) * 5;
+}
+function disk(cx, cy, r, col) {
+  L.fillStyle = col;
+  for (let yy = -r; yy <= r; yy++) { const w = Math.floor(Math.sqrt(r * r - yy * yy)); L.fillRect(cx - w, cy + yy, w * 2 + 1, 1); }
+}
+function drawRoundTree(x, gy, col, hi) {
+  L.fillStyle = '#7a3e1d'; L.fillRect(x - 1, gy - 7, 3, 7);
+  disk(x, gy - 12, 6, col); disk(x - 2, gy - 14, 3, hi);
+}
+function drawPine(x, gy) {
+  L.fillStyle = '#7a3e1d'; L.fillRect(x - 1, gy - 4, 2, 4);
+  for (let r = 0; r < 11; r++) {
+    const w = 1 + Math.floor(r * 0.6);
+    L.fillStyle = '#0f8a52'; L.fillRect(x - w, gy - 15 + r, w * 2 + 1, 1);
+    L.fillStyle = '#4fe08a'; L.fillRect(x - w, gy - 15 + r, 1, 1);
+  }
+}
+function drawIsland(x, y, w, i) {
+  for (let r = 0; r < 12; r++) {
+    const ww = Math.round(w * (1 - r / 14));
+    L.fillStyle = r < 2 ? '#a8623a' : r < 7 ? '#7a3e1d' : '#5a2a14';
+    L.fillRect(x + ((w - ww) >> 1), y + 3 + r, ww, 1);
+  }
+  L.fillStyle = '#2fc468'; L.fillRect(x, y, w, 3);
+  L.fillStyle = '#b6ff8a'; L.fillRect(x, y, w, 1);
+  L.fillStyle = '#3fd07a'; L.fillRect(x + 3, y + 14, 1, 4); L.fillRect(x + w - 5, y + 11, 1, 5);
+  if (i % 2) drawRoundTree(x + (w >> 1), y + 2, '#ff7ac8', '#ffc2ea'); else drawPine(x + (w >> 1), y + 2);
+  for (let k = 0; k < 3; k++) {
+    L.fillStyle = FLOWERC[(i + k) % 5];
+    L.fillRect(x + 4 + k * ((w - 10) >> 1), y - 1, 2, 2);
   }
 }
 function drawDiamond(x, y, ph) {
   const hw = Math.max(1, Math.round(Math.abs(Math.cos(G.t * 3 + ph)) * 4));
+  L.fillStyle = '#3b0a6b';
+  for (let r = -6; r <= 6; r++) {
+    const half = Math.round((hw + 1) * (1 - Math.abs(r) / 6.5));
+    L.fillRect(x - half - 1, y + r, half * 2 + 3, 1);
+  }
   for (let r = -5; r <= 5; r++) {
     const half = Math.round(hw * (1 - Math.abs(r) / 5.5));
     L.fillStyle = r < -1 ? '#fff2a8' : r < 2 ? '#ffd01f' : '#ff8a1f';
@@ -515,20 +616,24 @@ function drawDiamond(x, y, ph) {
 function drawPlayer(x, y) {
   const p = G.p, f = Math.cos(p.ang) >= 0 ? 1 : -1;
   const flap = (G.t * (p.dash ? 28 : 14) | 0) % 2;
-  const R = (dx, dy, w, h, col) => { L.fillStyle = col; L.fillRect(f > 0 ? x + dx : x - dx - w, y + dy, w, h); };
   const wing = p.dash ? '#ffffff' : '#4df3ff';
-  /* wings */
-  R(-6, flap ? -6 : -3, 4, 2, wing); R(-8, flap ? -8 : -5, 3, 2, wing);
-  R(-6, flap ? -3 : 0, 4, 2, '#2aa6c4');
-  /* ribbon */
-  R(-9, 3, 4, 2, '#ff3fb4'); R(-12, 5 + flap, 3, 2, '#ff3fb4');
-  /* body */
-  R(-3, 0, 6, 6, '#7b3cff'); R(-2, 5, 4, 2, '#5a24d4'); R(-1, 1, 2, 3, '#a56bff');
-  /* head */
-  R(-3, -6, 6, 5, '#ffd9b8'); R(-4, -5, 1, 3, '#ffd9b8');
-  R(1, -4, 1, 2, '#07021a');
-  /* hat */
-  R(-4, -9, 7, 3, '#ff3fb4'); R(-8, -8, 4, 2, '#ff3fb4'); R(-11, -6, 3, 2, '#ffe14d');
+  const sprite = (ox, oy, dark) => {
+    const R = (dx, dy, w, h, col) => { L.fillStyle = dark ? '#2a0a5e' : col; L.fillRect((f > 0 ? x + dx : x - dx - w) + ox, y + dy + oy, w, h); };
+    /* wings */
+    R(-6, flap ? -6 : -3, 4, 2, wing); R(-8, flap ? -8 : -5, 3, 2, wing);
+    R(-6, flap ? -3 : 0, 4, 2, '#2aa6c4');
+    /* ribbon */
+    R(-9, 3, 4, 2, '#ff3fb4'); R(-12, 5 + flap, 3, 2, '#ff3fb4');
+    /* body */
+    R(-3, 0, 6, 6, '#7b3cff'); R(-2, 5, 4, 2, '#5a24d4'); R(-1, 1, 2, 3, '#a56bff');
+    /* head */
+    R(-3, -6, 6, 5, '#ffd9b8'); R(-4, -5, 1, 3, '#ffd9b8');
+    R(1, -4, 1, 2, '#07021a');
+    /* hat */
+    R(-4, -9, 7, 3, '#ff3fb4'); R(-8, -8, 4, 2, '#ff3fb4'); R(-11, -6, 3, 2, '#ffe14d');
+  };
+  sprite(-1, 0, true); sprite(1, 0, true); sprite(0, -1, true); sprite(0, 1, true);
+  sprite(0, 0, false);
   if (p.dash) { L.fillStyle = 'rgba(77,243,255,.5)'; L.fillRect(f > 0 ? x - 26 : x + 8, y - 2, 18, 5); }
 }
 function drawText(txt, x, y, col) {
@@ -661,12 +766,47 @@ $('again').addEventListener('click', startGame);
 $('mute').addEventListener('click', () => setMute(!muted));
 $('bestline').textContent = G.best ? 'HIGH SCORE ' + G.best : '';
 
+/* ---------- controller ---------- */
+const padEl = $('padstat');
+let padPrevStart = false, padPrevMute = false;
+function activePad() {
+  try {
+    const list = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const g of list) if (g && g.connected) return g;
+  } catch (_) {}
+  return null;
+}
+function rumble(ms, weak, strong) {
+  try {
+    const g = activePad(), a = g && g.vibrationActuator;
+    if (a && a.playEffect) a.playEffect('dual-rumble', { startDelay: 0, duration: ms, weakMagnitude: weak, strongMagnitude: strong });
+  } catch (_) {}
+}
+function pollPad() {
+  const g = activePad(), P = G.pad;
+  if (!g) {
+    if (P.on) { P.on = false; P.ix = 0; P.iy = 0; P.dash = false; padEl.hidden = true; }
+    return;
+  }
+  if (!P.on) { P.on = true; padEl.hidden = false; }
+  const b = i => !!(g.buttons[i] && g.buttons[i].pressed);
+  let x = g.axes[0] || 0, y = g.axes[1] || 0;
+  if (Math.hypot(x, y) < 0.3) { x = 0; y = 0; }
+  if (!x && !y) { x = (b(15) ? 1 : 0) - (b(14) ? 1 : 0); y = (b(13) ? 1 : 0) - (b(12) ? 1 : 0); }
+  P.ix = x; P.iy = y;
+  P.dash = b(0) || b(1) || b(2) || b(3) || b(4) || b(5) || b(6) || b(7);
+  const start = b(9) || b(0), mute = b(8);
+  if (start && !padPrevStart && G.mode !== 'play') startGame();
+  if (mute && !padPrevMute) setMute(!muted);
+  padPrevStart = start; padPrevMute = mute;
+}
+
 /* ---------- loop ---------- */
 let last = 0;
 function frame(ts) {
   const dt = Math.min(0.05, (ts - last) / 1000 || 0.016);
   last = ts;
-  update(dt); render(); present(); updateHud();
+  pollPad(); update(dt); render(); present(); updateHud();
   requestAnimationFrame(frame);
 }
 window.sd = { G, update, startGame, wrapD };
