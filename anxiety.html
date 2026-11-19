@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Down the Rabbit Hole</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b0618;color:#f6e8c9;font-family:'VT323',ui-monospace,monospace;min-height:100vh;display:flex;justify-content:center;-webkit-tap-highlight-color:transparent}
+#game{width:100%;max-width:760px;display:flex;flex-direction:column;padding:12px;gap:12px}
+canvas{width:100%;aspect-ratio:16/9;image-rendering:pixelated;image-rendering:crisp-edges;image-rendering:pixelated;border:4px solid #f6e8c9;box-shadow:0 0 0 4px #0b0618,0 0 0 8px #5a3a94;background:#000;display:block}
+#hud{display:flex;align-items:center;gap:10px;font-size:20px;flex-wrap:wrap;min-height:26px}
+#hud .lbl{color:#e8689f}
+#hud .bar{display:flex;gap:3px}
+#hud i{width:12px;height:12px;border:2px solid #5a3a94;background:#140c28;display:block}
+#hud i.on.c{background:#3dbfae;border-color:#a6f2e6}
+#hud i.on.s{background:#f4c752;border-color:#fff1b8}
+#snd{margin-left:auto;font-family:inherit;font-size:18px;background:none;border:2px solid #5a3a94;color:#f6e8c9;padding:0 8px;cursor:pointer}
+#box{position:relative;border:4px solid #f6e8c9;background:#1a0f33;padding:14px 16px 22px;min-height:170px;font-size:26px;line-height:1.15;cursor:pointer;box-shadow:5px 5px 0 #5a3a94;user-select:none}
+#who{color:#e8689f;min-height:1.1em;margin-bottom:4px;letter-spacing:1px}
+#txt{white-space:pre-line}
+#txt ul{margin:6px 0;padding-left:22px}
+#ch button{display:block;width:100%;text-align:left;font-family:inherit;font-size:24px;line-height:1.1;background:#2b1d52;color:#f6e8c9;border:3px solid #5a3a94;padding:8px 10px;margin-top:8px;cursor:pointer}
+#ch button:hover:not(:disabled),#ch button:focus-visible{border-color:#e8689f;background:#3a2468;outline:none}
+#ch button:disabled{opacity:.45;cursor:not-allowed}
+#next{position:absolute;right:14px;bottom:6px;color:#f4c752;animation:b 0.8s steps(2) infinite;display:none}
+@keyframes b{50%{opacity:0}}
+.hint{font-size:18px;color:#8a80a8;text-align:center}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="c" width="192" height="108"></canvas>
+  <div id="hud"><span class="lbl">CALM</span><span class="bar" id="cb"></span><span class="lbl">SELF</span><span class="bar" id="sb"></span><button id="snd">SOUND: ON</button></div>
+  <div id="box">
+    <div id="who"></div>
+    <div id="txt"></div>
+    <div id="ch"></div>
+    <div id="next">&#9660;</div>
+  </div>
+  <div class="hint">tap the box or press space to continue &middot; number keys pick choices</div>
+</div>
+
+<script>
+/*STORY*/
+const STORY={
+title:{bg:'title',who:'DOWN THE RABBIT HOLE',text:'A tiny game about anxiety, and not knowing who you are.\n\nAbout 5 minutes. Gentle themes. Your choices change how it ends.',choices:[{t:'BEGIN',to:'a1'}]},
+
+a1:{bg:'field',show:['alice'],text:'You wake beneath a tree. Your chest is tight, like a fist around a small bird.',next:'a2'},
+a2:{bg:'field',show:['alice'],text:'Someone is asking you a question. A simple one. The kind everybody knows the answer to.',next:'a3'},
+a3:{bg:'field',show:['alice'],who:'???',text:'"What is your name?"',next:'a4'},
+a4:{bg:'field',show:['alice'],text:'You open your mouth. There is nothing there. Only a hum, and rising static.',next:'a5'},
+a5:{bg:'field',show:['alice'],text:'What do you do?',choices:[
+  {t:'Panic. Try harder to remember.',to:'a6a',calm:-1},
+  {t:'Breathe in. Let the question wait.',to:'a6b',calm:1}]},
+a6a:{bg:'field',show:['alice'],text:'The harder you reach, the faster it slips away. The static gets louder.',next:'r1'},
+a6b:{bg:'field',show:['alice'],text:'The question is still there. But it can wait. Just a little.',next:'r1'},
+
+r1:{bg:'field',show:['alice','rabbit'],who:'White Rabbit',text:'"Late! Late! Late!"',next:'r2'},
+r2:{bg:'field',show:['alice','rabbit'],text:'A rabbit sprints past, clutching a watch that ticks like a pulse. Tick-tick-tick-tick-tick.',next:'r3'},
+r3:{bg:'field',show:['alice','rabbit'],who:'White Rabbit',text:'"Everyone is already there! They all know their lines! They all know who they ARE!"',next:'r4'},
+r4:{bg:'field',show:['alice','rabbit'],text:'He is already leaving.',choices:[
+  {t:'Run after him.',to:'r5a',calm:-1},
+  {t:'Call out: "Where are you going?"',to:'r5b',piece:'I ask when I am lost'}]},
+r5a:{bg:'field',show:['alice','rabbit'],text:'You run. The faster you go, the faster he goes. The ground begins to tilt.',next:'f1'},
+r5b:{bg:'field',show:['alice','rabbit'],who:'White Rabbit',text:'"I don\'t KNOW! Nobody told me! I\'m just LATE!" For a moment he looks as scared as you. Then the ground opens.',next:'f1'},
+
+f1:{bg:'fall',show:['alice'],text:'Down. Down. Clocks and teacups drift past you.',next:'f2'},
+f2:{bg:'fall',show:['alice'],text:'You count the seconds. You reach forty and lose your place.',next:'f3'},
+f3:{bg:'fall',show:['alice'],text:'Falling feels like every 3 a.m. thought arriving at once.',next:'c1'},
+
+c1:{bg:'garden',show:['alice','caterpillar'],text:'You land softly among giant mushrooms. A blue caterpillar regards you, unhurried.',next:'c2'},
+c2:{bg:'garden',show:['alice','caterpillar'],who:'Caterpillar',text:'"Who. Are. You?"',next:'c3'},
+c3:{bg:'garden',show:['alice','caterpillar'],text:'Your heart does the thing again.',choices:[
+  {t:'"I don\'t know."',to:'c4a',piece:'I can be honest'},
+  {t:'"Whoever you need me to be."',to:'c4b',calm:-1},
+  {t:'"Why does everyone keep asking?"',to:'c4c',piece:'I am curious'}]},
+c4a:{bg:'garden',show:['alice','caterpillar'],who:'Caterpillar',text:'"Ah. Honest. That is rarer than knowing."',next:'c5'},
+c4b:{bg:'garden',show:['alice','caterpillar'],who:'Caterpillar',text:'"That is a costume, dear. Not a person. Costumes get heavy."',next:'c5'},
+c4c:{bg:'garden',show:['alice','caterpillar'],who:'Caterpillar',text:'"Because you keep asking it yourself. Quietly. All day long."',next:'c5'},
+c5:{bg:'garden',show:['alice','caterpillar'],who:'Caterpillar',text:'"You were a different size this morning. Is that a crime?"',next:'c6'},
+c6:{bg:'garden',show:['alice','caterpillar'],who:'Caterpillar',text:'"Changing is not the same as disappearing."',next:'c7'},
+c7:{bg:'garden',show:['alice','caterpillar'],fx:{calm:1},text:'He offers you a piece of mushroom. It is warm. You hold it for a while, and your shoulders drop a little.',next:'t1'},
+
+t1:{bg:'forest',show:['alice','cat'],text:'The path forks, then forks again. A grin hangs in the branches. A cat is loosely attached.',next:'t2'},
+t2:{bg:'forest',show:['alice','cat'],who:'Cheshire Cat',text:'"What if they laugh at you?"',next:'t3'},
+t3:{bg:'forest',show:['alice','cat'],who:'Cheshire Cat',text:'"What if you pick wrong? What if you have been wrong this whole time?"',next:'t4'},
+t4:{bg:'forest',show:['alice','cat'],text:'The thoughts stack up like teacups. Each one tiny. Together, enormous.',next:'t5'},
+t5:{bg:'forest',show:['alice','cat'],text:'How do you answer?',choices:[
+  {t:'Argue with every single one.',to:'t6a',calm:-1},
+  {t:'"Maybe. But right now, I\'m okay."',to:'t6b',calm:1,piece:'I can stay in the moment'},
+  {t:'"Are you... me?"',to:'t6c',piece:'I can meet my fear'}]},
+t6a:{bg:'forest',show:['alice','cat'],who:'Cheshire Cat',text:'"Ha! I have infinitely more." Arguing only feeds it. The grin widens.',next:'p1'},
+t6b:{bg:'forest',show:['alice','cat'],who:'Cheshire Cat',text:'"...Hm. That isn\'t in my script." The grin flickers. The thoughts do not vanish. They just get quieter.',next:'p1'},
+t6c:{bg:'forest',show:['alice','cat'],who:'Cheshire Cat',text:'"The part of you trying to protect you. Badly." It is a strange comfort, being known by your own fear.',next:'p1'},
+
+p1:{bg:'tea',show:['alice','hatter'],text:'A very long table. Everyone is talking at once. It is always six o\'clock.',next:'p2'},
+p2:{bg:'tea',show:['alice','hatter'],who:'Mad Hatter',text:'"Have you decided who you are yet? You have until tea! It is always tea!"',next:'p3'},
+p3:{bg:'tea',show:['alice','hatter'],who:'Voices',text:'"Pick a self! Pick one! Is it a good one? Do people LIKE it?"',next:'p4'},
+p4:{bg:'tea',show:['alice','hatter'],text:'Cups spin. Voices overlap. The table keeps getting longer. Your hands will not stop shaking.',next:'p5'},
+p5:{bg:'tea',show:['alice','hatter'],text:'Your breath is small and high, up in your throat. You need a slower rhythm than theirs.',next:'pb'},
+pb:{bg:'tea',show:['alice','hatter'],type:'breathe',text:'Tap BREATHE when the circle reaches the ring. Three slow breaths.',good:'p6a',meh:'p6b'},
+p6a:{bg:'tea',show:['alice','hatter'],fx:{calm:2},text:'The table does not stop. But you have stepped out of its rhythm. The noise is a river, and you are standing on the bank.',next:'q1'},
+p6b:{bg:'tea',show:['alice','hatter'],fx:{calm:1},text:'It was not perfect. But one slow breath is still a slow breath. It counts.',next:'q1'},
+
+q1:{bg:'court',show:['alice','queen'],text:'The court. Red and black, with sharp corners everywhere. Playing cards stand in rows, all pointing at you.',next:'q2'},
+q2:{bg:'court',show:['alice','queen'],who:'Queen of Hearts',text:'"NAME! PURPOSE! PLAN! A five-year plan! RIGHT NOW!"',next:'q3'},
+q3:{bg:'court',show:['alice','queen'],text:'She is the loudest voice in the room. Not the truest. Just the loudest.',next:'q4'},
+q4:{bg:'court',show:['alice','queen'],who:'Queen of Hearts',text:'"Anyone who does not know who they are shall be... OFF WITH THEIR HEAD!"',next:'q5'},
+q5:{bg:'court',show:['alice','queen'],text:'Every card is waiting.',choices:[
+  {t:'Blurt out a name. Any name.',to:'q6a',calm:-1},
+  {t:'Freeze. Say nothing.',to:'q6b'},
+  {t:'"I don\'t know yet. And I\'m still here."',to:'q6c',req:4,lockT:'(Too shaky to speak. Needs more calm.)',piece:'I am still here'}]},
+q6a:{bg:'court',show:['alice','queen'],who:'Queen of Hearts',text:'"WRONG! That is a costume!" She is right, which is the worst part. But nothing happens. Nothing ever really happens.',next:'q9'},
+q6b:{bg:'court',show:['alice','queen'],text:'The silence is enormous. The Queen waits. For once, nobody fills it for you.',next:'q9'},
+q6c:{bg:'court',show:['alice','queen'],text:'The Queen opens her mouth. Nothing comes out. Her crown slips an inch. "Still here" was not in her rules.',next:'q9'},
+q9:{bg:'court',show:['alice','queen'],route:{A:'eA1',B:'eB1',C:'eC1'}},
+
+eA1:{bg:'dawn',show:['alice'],ending:'ENDING: THE UNFINISHED',text:'The cards flutter upward like startled birds. Just paper. It was only ever paper.',next:'eA2'},
+eA2:{bg:'dawn',show:['alice'],text:'You wake beneath the tree in the morning light. The static is still there, but small. A radio in another room.',next:'eA3'},
+eA3:{bg:'dawn',show:['alice'],text:'You still have no tidy answer. But look at what you gathered along the way.',next:'eA4'},
+eA4:{bg:'dawn',show:['alice'],text:'Maybe a self is not something you find. Maybe it is something you practice, gently, one day at a time.',next:'eA5'},
+eA5:{bg:'dawn',show:['alice'],text:'You say a name out loud, just to see how it feels. It fits well enough for today.',next:'credits'},
+
+eB1:{bg:'dawn',show:['alice'],ending:'ENDING: THE QUIET DOOR',text:'The cards scatter. The court dissolves into a pale morning.',next:'eB2'},
+eB2:{bg:'dawn',show:['alice'],text:'You wake beneath the tree. Still not sure who you are. But your breath is slower than before.',next:'eB3'},
+eB3:{bg:'dawn',show:['alice'],text:'You are not behind. There was never a finish line. Only a long garden, and you are allowed to walk it slowly.',next:'eB4'},
+eB4:{bg:'dawn',show:['alice'],text:'In the trunk of the tree, a very small door stands open a crack.',next:'credits'},
+
+eC1:{bg:'dawn',show:['alice'],ending:'ENDING: THE LOUD MORNING',text:'The shouting swells. The cards blur. The ticking gets louder, and louder, and then...',next:'eC2'},
+eC2:{bg:'dawn',show:['alice'],text:'You wake with a gasp. Heart racing. But the tree is here, and the grass, and the sky. All of it still here.',next:'eC3'},
+eC3:{bg:'dawn',show:['alice'],text:'You do not have answers. But you woke up, and you noticed. That counts for more than it feels like.',next:'eC4'},
+eC4:{bg:'dawn',show:['alice'],text:'When the noise is this loud, another person is a door worth opening. A friend. Someone you trust. Someone trained to help.',next:'credits'},
+
+credits:{bg:'dawn',show:['alice'],type:'credits'}
+};
+/*ENDSTORY*/
+
+/* ---------- state & engine ---------- */
+const W=192,H=108;
+const $=id=>document.getElementById(id);
+const S={calm:3,pieces:[],id:'title',n:null,ending:'',tim:null,typing:false,breath:null};
+let muted=false,AC=null;
+
+function blip(f){
+  if(muted)return;
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    const o=AC.createOscillator(),g=AC.createGain();
+    o.type='square';o.frequency.value=f||400;g.gain.value=0.015;
+    o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+0.035);
+  }catch(e){}
+}
+const VOICE={'White Rabbit':760,'Caterpillar':220,'Cheshire Cat':520,'Mad Hatter':620,'Voices':680,'Queen of Hearts':180,'???':440};
+
+function hud(){
+  $('cb').innerHTML=Array.from({length:6},(_,i)=>'<i class="'+(i<S.calm?'on c':'')+'"></i>').join('');
+  $('sb').innerHTML=Array.from({length:4},(_,i)=>'<i class="'+(i<S.pieces.length?'on s':'')+'"></i>').join('');
+  $('hud').style.visibility=(S.id==='title'||S.id==='credits')?'hidden':'visible';
+}
+function apply(fx){
+  if(!fx)return;
+  if(fx.calm)S.calm=Math.max(0,Math.min(6,S.calm+fx.calm));
+  if(fx.piece&&!S.pieces.includes(fx.piece))S.pieces.push(fx.piece);
+}
+function ending(){
+  if(S.calm>=4&&S.pieces.length>=3)return 'A';
+  if(S.calm<=2)return 'C';
+  return 'B';
+}
+function go(id){
+  clearInterval(S.tim);
+  const n=STORY[id];
+  S.id=id;S.n=n;S.breath=null;
+  apply(n.fx);
+  if(n.route)return go(n.route[ending()]);
+  if(n.ending)S.ending=n.ending;
+  hud();
+  if(n.type==='credits')return credits();
+  say(n);
+}
+function say(n){
+  const t=n.text||'',f=VOICE[n.who]||300;
+  let i=0;
+  $('who').textContent=n.who||'';
+  $('txt').textContent='';$('ch').innerHTML='';$('next').style.display='none';
+  S.typing=true;
+  S.tim=setInterval(()=>{
+    i++;$('txt').textContent=t.slice(0,i);
+    if(i%3===0&&t[i-1]!==' ')blip(f);
+    if(i>=t.length)finish();
+  },22);
+}
+function finish(){
+  const n=S.n;
+  clearInterval(S.tim);S.typing=false;
+  $('txt').textContent=n.text||'';
+  if(n.choices){
+    n.choices.forEach((c,i)=>{
+      const locked=c.req&&S.calm<c.req;
+      const b=document.createElement('button');
+      b.textContent=(n.choices.length>1?(i+1)+'. ':'')+(locked?c.lockT:c.t);
+      b.disabled=!!locked;
+      b.onclick=()=>{blip(600);apply(c);go(c.to)};
+      $('ch').appendChild(b);
+    });
+  }else if(n.type==='breathe'){
+    S.breath={n:0,ok:0,busy:false};
+    const b=document.createElement('button');
+    b.textContent='BREATHE';b.onclick=tapBreath;
+    $('ch').appendChild(b);
+  }else if(n.next){
+    $('next').style.display='block';
+  }
+}
+function advance(){
+  if(S.typing){finish();return}
+  if(S.n&&S.n.next){blip(500);go(S.n.next)}
+}
+function breathR(t){return 6+16*(0.5-0.5*Math.cos(t*Math.PI*2/4))}
+function tapBreath(){
+  const B=S.breath;if(!B||B.busy)return;
+  const r=breathR(performance.now()/1000),good=r>=19;
+  B.n++;if(good)B.ok++;
+  $('txt').textContent=(good?'In... and out. ':(r<12?'A little early. ':'A little late. '))+'('+B.n+'/3)';
+  blip(good?660:220);
+  if(B.n>=3){
+    B.busy=true;
+    const n=S.n;
+    setTimeout(()=>{S.breath=null;go(B.ok>=2?n.good:n.meh)},900);
+  }
+}
+function credits(){
+  clearInterval(S.tim);S.typing=false;
+  $('who').textContent='THE END';
+  const list=S.pieces.length?'<ul>'+S.pieces.map(p=>'<li>'+p+'</li>').join('')+'</ul>':'<ul><li>(none yet, and that is okay)</li></ul>';
+  $('txt').innerHTML=S.ending+'<br><br>Pieces of yourself you found:'+list+
+    '<br>Feeling anxious, or unsure of who you are, is more common than it looks. You do not have to untangle it alone. Talking with someone you trust, or a mental health professional, can help.';
+  $('ch').innerHTML='';
+  const b=document.createElement('button');b.textContent='PLAY AGAIN';
+  b.onclick=()=>{S.calm=3;S.pieces=[];S.ending='';go('title')};
+  $('ch').appendChild(b);
+  $('next').style.display='none';
+}
+
+$('box').addEventListener('click',e=>{if(e.target.closest('button'))return;advance()});
+$('snd').onclick=()=>{muted=!muted;$('snd').textContent='SOUND: '+(muted?'OFF':'ON')};
+document.addEventListener('keydown',e=>{
+  if(e.key===' '||e.key==='Enter'){
+    if(e.target&&e.target.tagName==='BUTTON'&&e.target.id!=='snd')return;
+    e.preventDefault();
+    if(S.breath){tapBreath();return}
+    advance();
+  }else if(/^[1-4]$/.test(e.key)){
+    const bs=[...document.querySelectorAll('#ch button')];
+    const b=bs[+e.key-1];
+    if(b&&!b.disabled)b.click();
+  }
+});
+
+/* ---------- pixel art ---------- */
+const cv=$('c'),g=cv.getContext('2d');
+g.imageSmoothingEnabled=false;
+const P={ink:'#140c28',n1:'#241545',n2:'#3a2468',n3:'#5a3a94',pink:'#e8689f',cream:'#f6e8c9',teal:'#3dbfae',red:'#d93a52',redD:'#8f2036',gold:'#f4c752',blue:'#5d8ff0',blueD:'#35549e',green:'#4fae5e',greenM:'#2f7a48',greenD:'#235c3b',white:'#ffffff',skin:'#f2c6a0',hair:'#f0d07a',black:'#0c0818',grey:'#8a80a8'};
+function R(x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),w,h)}
+function disc(cx,cy,r,c){g.fillStyle=c;cx=Math.round(cx);cy=Math.round(cy);for(let y=-r;y<=r;y++){const w=Math.floor(Math.sqrt(r*r-y*y));g.fillRect(cx-w,cy+y,w*2+1,1)}}
+function ring(cx,cy,r,c){g.fillStyle=c;for(let y=-r;y<=r;y++){const o=Math.floor(Math.sqrt(r*r-y*y)),i=Math.floor(Math.sqrt(Math.max(0,(r-1)*(r-1)-y*y)));if(Math.abs(y)>=r-1){g.fillRect(cx-o,cy+y,o*2+1,1)}else{g.fillRect(cx-o,cy+y,o-i+1,1);g.fillRect(cx+i,cy+y,o-i+1,1)}}}
+function rnd(i){const x=Math.sin(i*127.1)*43758.5453;return x-Math.floor(x)}
+function bands(cols,h){const bh=Math.ceil(h/cols.length);cols.forEach((c,i)=>R(0,i*bh,W,bh,c))}
+function stars(t,n,maxy){for(let i=0;i<n;i++){if(Math.sin(t*2+i*3)>-0.3)R(Math.floor(rnd(i)*W),Math.floor(rnd(i+50)*maxy),1,1,P.cream)}}
+function mush(x,base,capR,stemH,col){
+  R(x-3,base-stemH,6,stemH,P.cream);R(x+1,base-stemH,2,stemH,'#d9c7a2');
+  const ch=Math.floor(capR*0.5);
+  for(let y=0;y<=ch;y++){const w=Math.floor(capR*Math.sqrt(1-(y/ch)*(y/ch)));R(x-w,base-stemH-y,w*2,1,col)}
+  R(x-capR,base-stemH,capR*2,1,P.black);
+  R(x-capR/2,base-stemH-ch+3,3,3,P.white);R(x+capR/3,base-stemH-ch+5,3,3,P.white);R(x-2,base-stemH-3,2,2,P.white);
+}
+function clockFace(x,y,r,t,fast){
+  disc(x,y,r,P.cream);ring(x,y,r,P.black);
+  const a=fast?t*8:0;
+  R(x,y-r+2,1,r-2,P.black);
+  R(x+Math.round(Math.sin(a)*(r-3)),y+Math.round(-Math.cos(a)*(r-3)),1,1,P.red);
+}
+
+const BG={
+title(t){
+  bands(['#140c28','#1b1038','#241545'],H);
+  stars(t,30,H);
+  for(let k=0;k<70;k++){
+    const a=k*0.33+t*0.7,r=k*0.85;
+    R(96+Math.cos(a)*r*1.7,54+Math.sin(a)*r*0.95,2,2,[P.n3,P.pink,P.n2][k%3]);
+  }
+  disc(96,54,9,P.black);clockFace(96,54,8,t,true);
+},
+field(t){
+  bands(['#2a1b55','#4a2f85','#7a45a0','#b85a9f','#e8689f','#f4a79a'],66);
+  stars(t,30,40);
+  for(let x=0;x<W;x++){const h=70+Math.floor(4*Math.sin(x/17)+3*Math.sin(x/7));R(x,h,1,H-h,P.greenD)}
+  R(0,82,W,26,P.greenM);
+  for(let x=0;x<W;x+=9){const s=Math.round(Math.sin(t*2+x));R(x,80,1,3,P.green);R(x+s,78,1,2,P.green)}
+  R(150,42,10,44,'#6b4a2e');R(152,42,2,44,'#8a6038');
+  disc(155,32,17,P.greenD);disc(145,38,11,P.greenM);disc(167,36,11,P.greenM);disc(155,24,8,P.green);
+  mush(70,96,5,6,P.red);mush(100,102,4,4,P.pink);
+},
+fall(t){
+  bands(['#0e0820','#1a1040','#241545'],H);
+  for(let i=0;i<18;i++){
+    const sp=18+rnd(i+3)*30,x=Math.floor(rnd(i)*(W-10)),y=H+10-((t*sp+rnd(i+9)*(H+20))%(H+20));
+    const k=i%3;
+    if(k===0)clockFace(x,y,5,t,true);
+    else if(k===1){R(x,y,7,5,P.white);R(x+7,y+1,2,3,P.white);R(x+1,y+1,5,1,P.pink)}
+    else{R(x,y,6,9,P.white);R(x+2,y+3,2,2,P.red)}
+  }
+},
+garden(t){
+  bands(['#142f45','#1c4c5c','#25706f'],60);
+  R(0,60,W,48,'#1f6b48');
+  for(let x=0;x<W;x+=7)R(x,60+(x%3),1,2,P.greenM);
+  mush(16,84,11,22,P.pink);mush(62,92,8,14,P.teal);mush(100,100,6,8,P.red);
+  mush(144,98,26,38,P.n3);
+},
+forest(t){
+  bands(['#0c1a2a','#10303a','#16453f'],H);
+  for(let i=0;i<8;i++){const x=i*26+Math.floor(rnd(i)*8);R(x,0,7,H,'#08111c');disc(x+3,10+rnd(i+3)*18,12,'#0f3a3a')}
+  R(0,90,W,18,'#0b2424');
+  for(let i=0;i<10;i++){
+    const x=rnd(i)*W+Math.sin(t+i)*8,y=30+rnd(i+20)*50+Math.cos(t*0.8+i)*5;
+    if(Math.sin(t*3+i)>0)R(x,y,2,2,P.gold);
+  }
+},
+tea(t){
+  bands(['#2a1750','#3a2468','#4a2f85'],62);
+  R(0,62,W,46,'#5b2a4a');
+  for(let i=0;i<12;i++){const x=i*16;for(let k=0;k<4;k++)R(x+k*2+2,6+k,12-k*4,1,[P.red,P.gold,P.teal][i%3])}
+  clockFace(96,26,11,t,false);
+  R(96,28,1,7,P.black);R(94,34,5,1,P.black);
+  R(8,70,176,4,P.cream);R(8,74,176,6,P.redD);R(12,80,3,16,'#3b1a30');R(177,80,3,16,'#3b1a30');
+  // teapot + dormouse
+  R(80,60,22,10,P.teal);R(78,62,3,5,P.teal);R(102,62,4,2,P.teal);R(88,57,6,3,P.teal);
+  const pop=Math.round(Math.max(0,Math.sin(t*2))*3);
+  R(86,57-pop,3,2,'#c9a98a');R(92,57-pop,3,2,'#c9a98a');
+  // cups
+  [[30,66],[52,66],[116,66],[160,66]].forEach(([x,y],i)=>{R(x,y-Math.round(Math.abs(Math.sin(t*2+i))*2),7,4,P.white);R(x+7,y+1,2,2,P.white)});
+  // chatter bubbles
+  for(let i=0;i<7;i++){
+    const ph=(t*0.9+i*0.7)%3;if(ph>2)continue;
+    const x=12+rnd(i+30)*150,y=34+rnd(i+40)*24-ph*3;
+    R(x,y,13,7,P.cream);R(x+3,y+7,2,2,P.cream);
+    R(x+3,y+3,1,1,P.ink);R(x+6,y+3,1,1,P.ink);R(x+9,y+3,1,1,P.ink);
+  }
+},
+court(t){
+  bands(['#2a0f1f','#4a1428','#6b1a30'],60);
+  R(0,0,14,60,P.redD);R(W-14,0,14,60,P.redD);R(14,0,2,60,P.gold);R(W-16,0,2,60,P.gold);
+  R(74,10,44,50,'#3a0f20');R(78,14,36,46,P.gold);R(82,18,28,42,P.redD);
+  for(let y=60;y<H;y+=6)for(let x=0;x<W;x+=6)R(x,y,6,6,((x/6+y/6)%2)?P.black:P.redD);
+  for(let i=0;i<4;i++){
+    const x=50+i*20,y=62+(i%2)*3;
+    R(x,y,11,16,P.white);R(x,y,11,1,P.black);R(x,y+15,11,1,P.black);
+    R(x+3,y+4,2,2,P.red);R(x+6,y+4,2,2,P.red);R(x+3,y+6,5,2,P.red);R(x+4,y+8,3,1,P.red);
+    R(x+2,y+16,2,5,P.black);R(x+7,y+16,2,5,P.black);
+  }
+  for(let i=0;i<5;i++){const y=(H-((t*14+i*22)%H));R(8+i*36,y,3,3,P.red)}
+},
+dawn(t){
+  bands(['#2b2060','#5a3a94','#c25f9f','#f4a0a0','#f8d38a','#fbeab8'],66);
+  disc(120,60-Math.min(14,t*0.3),14,P.gold);
+  R(0,66,W,6,'#fbeab8');
+  for(let x=0;x<W;x++){const h=72+Math.floor(3*Math.sin(x/15));R(x,h,1,H-h,P.greenD)}
+  R(0,84,W,24,P.greenM);
+  R(140,36,12,52,'#6b4a2e');R(143,36,2,52,'#8a6038');
+  disc(146,28,16,P.greenD);disc(137,34,10,P.greenM);disc(156,33,10,P.greenM);
+  R(143,76,6,12,P.black);R(144,77,4,11,P.gold);
+  for(let x=0;x<W;x+=9){const s=Math.round(Math.sin(t*2+x));R(x,82,1,3,P.green);R(x+s,80,1,2,P.green)}
+}
+};
+
+const SP={
+alice(t){
+  let x=34,y=98;
+  if(S.n.bg==='fall'){x=96;y=62+Math.round(Math.sin(t*3)*3)}
+  else if(S.n.bg==='dawn'){x=100;y=98}
+  else if(S.n.bg==='tea'){x=40;y=104}
+  if(S.calm<=1&&Math.floor(t*12)%2)x+=1;
+  R(x-3,y-4,2,4,P.skin);R(x+1,y-4,2,4,P.skin);R(x-3,y-1,2,1,P.black);R(x+1,y-1,2,1,P.black);
+  R(x-5,y-12,10,8,P.blue);R(x-6,y-6,12,2,P.blue);R(x-3,y-11,6,6,P.white);
+  R(x-7,y-11,2,5,P.skin);R(x+5,y-11,2,5,P.skin);
+  R(x-4,y-19,8,7,P.skin);
+  R(x-5,y-22,10,4,P.hair);R(x-5,y-19,2,8,P.hair);R(x+3,y-19,2,8,P.hair);
+  R(x-5,y-22,10,1,P.blueD);
+  if(Math.floor(t*10)%40===0){R(x-2,y-15,1,1,P.black);R(x+1,y-15,1,1,P.black)}
+  else{R(x-2,y-16,1,2,P.black);R(x+1,y-16,1,2,P.black)}
+  R(x-1,y-13,2,1,P.redD);
+  if(S.calm<=2)R(x+5,y-18+Math.floor(t*3)%3,1,2,'#8fe0ff');
+  if(S.n.bg==='dawn'&&S.calm>=4){R(x-1,y-13,3,1,P.redD)}
+},
+rabbit(t){
+  const x=124,y=96-Math.round(Math.abs(Math.sin(t*9))*3);
+  R(x-4,y-30,3,12,P.white);R(x+1,y-30,3,12,P.white);R(x-3,y-28,1,8,P.pink);R(x+2,y-28,1,8,P.pink);
+  R(x-4,y-21,8,8,P.white);
+  R(x-3,y-18,1,2,P.red);R(x+2,y-18,1,2,P.red);R(x-1,y-15,2,1,P.pink);
+  R(x-5,y-13,10,11,P.white);R(x-4,y-12,8,7,P.blue);
+  R(x-6,y-2,5,2,P.white);R(x+1,y-2,5,2,P.white);
+  disc(x+8,y-8,3,P.gold);R(x+8,y-10,1,3,P.black);
+},
+caterpillar(t){
+  const y=44;
+  for(let i=4;i>=0;i--){
+    const bob=Math.round(Math.sin(t*3+i)*1.5);
+    disc(130+i*8,y+bob,5,i%2?P.teal:P.blue);
+    R(129+i*8,y+bob+4,1,2,P.black);R(132+i*8,y+bob+4,1,2,P.black);
+  }
+  R(125,y-3,2,3,P.white);R(126,y-2,1,2,P.black);R(131,y-3,2,3,P.white);R(132,y-2,1,2,P.black);
+  R(127,y+2,3,1,P.black);
+  R(124,y-9,1,4,P.black);R(122,y-10,3,1,P.black);R(131,y-9,1,4,P.black);R(131,y-10,3,1,P.black);
+},
+cat(t){
+  const x=122,y=48+Math.round(Math.sin(t*2)*2);
+  g.globalAlpha=0.5;
+  disc(x,y,12,'#a05cc8');
+  R(x-12,y-15,5,6,'#a05cc8');R(x+8,y-15,5,6,'#a05cc8');
+  R(x-3,y-12,2,5,'#6b3a90');R(x+3,y-12,2,5,'#6b3a90');
+  g.globalAlpha=1;
+  R(x-7,y-4,5,4,P.gold);R(x+3,y-4,5,4,P.gold);
+  R(x-5,y-4,1,4,P.black);R(x+5,y-4,1,4,P.black);
+  for(let i=-11;i<=11;i++){
+    const yy=y+3+(6-Math.floor(i*i/22));
+    R(x+i,yy,1,2,(i%4===0)?P.black:P.white);
+  }
+},
+hatter(t){
+  const x=140+Math.round(Math.sin(t*20)*0.6),y=70;
+  R(x-7,y-42,14,22,P.greenM);R(x-7,y-28,14,3,P.red);R(x-11,y-21,22,3,P.greenM);
+  disc(x,y-14,6,P.skin);
+  R(x-7,y-18,3,7,'#e8892f');R(x+4,y-18,3,7,'#e8892f');
+  R(x-3,y-16,2,2,P.white);R(x+1,y-16,2,2,P.white);R(x-2,y-15,1,1,P.black);R(x+2,y-15,1,1,P.black);
+  R(x-2,y-11,5,2,P.black);R(x-1,y-11,3,1,P.white);
+  R(x-3,y-8,6,2,P.red);R(x-7,y-6,14,6,P.n3);
+},
+queen(t){
+  const x=134+Math.round(Math.sin(t*28)*0.7),y=102;
+  for(let k=0;k<32;k++){const w=Math.floor(8+k*0.55);R(x-w,y-32+k,w*2,1,k%8===0?P.redD:P.red)}
+  R(x-9,y-33,18,3,P.white);R(x-3,y-20,2,2,P.white);R(x+4,y-14,2,2,P.white);R(x-8,y-10,2,2,P.white);
+  disc(x,y-41,7,P.skin);
+  R(x-8,y-45,3,8,'#3a1a10');R(x+5,y-45,3,8,'#3a1a10');
+  R(x-8,y-52,16,3,P.gold);R(x-8,y-55,2,3,P.gold);R(x-1,y-56,2,4,P.gold);R(x+6,y-55,2,3,P.gold);
+  R(x-5,y-44,4,1,P.black);R(x+2,y-44,4,1,P.black);R(x-4,y-42,2,2,P.black);R(x+2,y-42,2,2,P.black);
+  R(x-3,y-37,6,3,P.black);R(x-2,y-37,4,1,P.white);
+}
+};
+
+function draw(t){
+  const n=S.n;if(!n)return;
+  g.globalAlpha=1;
+  BG[n.bg||'field'](t);
+  (n.show||[]).forEach(s=>SP[s](t));
+  if(S.breath){
+    g.globalAlpha=0.5;R(0,0,W,H,P.ink);g.globalAlpha=1;
+    ring(96,52,22,P.cream);
+    g.globalAlpha=0.75;disc(96,52,Math.round(breathR(performance.now()/1000)),P.teal);g.globalAlpha=1;
+  }
+}
+let last=0;
+function loop(ts){
+  if(ts-last>=40){last=ts;draw(ts/1000)}
+  requestAnimationFrame(loop);
+}
+window.__game={S,go,STORY,draw,ending};
+go('title');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
