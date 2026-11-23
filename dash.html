@@ -216,7 +216,7 @@ function chGold(){const l=pickLane(),it=[];for(let i=0;i<4;i++)it.push({dz:i*32,
 function chGap(){const f=pickLane(),it=[];for(let l=-1;l<=1;l++)if(l!==f)it.push({dz:110,lane:l,kind:'rock'});for(let i=0;i<7;i++)it.push({dz:i*30,lane:f,kind:'carrot'});return{len:200,it};}
 function arcAt(it,z0,l){for(let i=0;i<5;i++)it.push({dz:z0+(i-2)*40,lane:l,kind:'carrot',h:ARC[i]});}
 function chLog(){const it=[{dz:110,lane:0,kind:'log'}];arcAt(it,110,pickLane());return{len:230,it};}
-function chDouble(){const it=[{dz:110,lane:0,kind:'log'},{dz:350,lane:0,kind:'log'}];arcAt(it,110,pickLane());arcAt(it,350,pickLane());return{len:460,it};}
+function chDouble(){const sp=200+.5*Math.min(520,speed+120),it=[{dz:110,lane:0,kind:'log'},{dz:110+sp,lane:0,kind:'log'}];arcAt(it,110,pickLane());arcAt(it,110+sp,pickLane());return{len:sp+120,it};}
 function chSlalom(){
   const sp=150+speed*.25,n=4,ls=[],it=[];
   for(let i=0;i<n;i++){ls.push(pickLane());it.push({dz:i*sp,lane:ls[i],kind:'rock'});}
@@ -240,7 +240,7 @@ function pickChunk(){
 function spawnChunk(){
   const c=pickChunk();
   for(const o of c.it)items.push({d:nextChunk+o.dz,lane:o.lane,kind:o.kind,h:o.h||0,taken:false,hit:false,ph:Math.random()*6});
-  nextChunk+=c.len+60+speed*.4;
+  nextChunk+=c.len+80+Math.min(520,speed+120)*.5;
 }
 function addDecor(d,side){
   const r=Math.random();let type,lat,v=0;
