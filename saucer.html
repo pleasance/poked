@@ -32,7 +32,7 @@
 <script>
 'use strict';
 const W = 384, H = 216, DT = 1/60, GAME_LEN = 300;
-const ROCKET_MAX = 5, ROCKET_RECHARGE = 5;
+const ROCKET_MAX = 5, ROCKET_RECHARGE = 3;
 const INK = '#1a0b2e';
 const cv = document.getElementById('game');
 const ctx = cv.getContext('2d');
@@ -998,7 +998,7 @@ function update(){
     }
     G.beamX = hx;
     if (hit){
-      damage(hit, 18*DT, 'laser');
+      damage(hit, 22*DT, 'laser');
       if (hit.T.boss || hit.owner) G.score += G.rush ? 4 : 2;
       G.sparkT -= DT; if (G.sparkT <= 0){ G.sparkT = .04; sparks(hx,by,2,pick(['#ff2e9a','#ff9ad4','#fff']),110); }
     }
